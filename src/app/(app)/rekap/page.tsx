@@ -78,6 +78,8 @@ export default function RekapPage() {
   const [tahap, setTahap] = React.useState("");
   const [menyimpan, setMenyimpan] = React.useState(false);
   const [splitIndex, setSplitIndex] = React.useState<number | null>(null);
+  /** Baris yang ditolak karena dianggap duplikat — ditahan di layar, bukan dibuang diam-diam */
+  const [adaYangDilewati, setAdaYangDilewati] = React.useState(false);
 
   const inputGambar = React.useRef<HTMLInputElement>(null);
   const inputPdf = React.useRef<HTMLInputElement>(null);
@@ -192,7 +194,7 @@ export default function RekapPage() {
     }
   }
 
-  async function simpan() {
+  async function simpan(paksa = false) {
     if (!rekeningId || baris.length === 0) return;
 
     const tanpaTanggal = baris.filter((b) => !b.tanggalIso).length;
@@ -211,6 +213,7 @@ export default function RekapPage() {
           sumber: mode === "pdf" ? "PDF" : "SCREENSHOT",
           baris: baris.map((b) => ({
             ...b,
+            paksa,
             rincian: b.rincian.length > 0 ? b.rincian : undefined,
           })),
         }),
@@ -218,13 +221,29 @@ export default function RekapPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      toast.success(
-        `${data.tersimpan} transaksi tersimpan` +
-          (data.dilewati > 0 ? `, ${data.dilewati} dilewati karena sudah ada` : "")
-      );
-      setBaris([]);
-      setGambar([]);
-      setPdf(null);
+      if (data.dilewati > 0) {
+        // Tahan baris yang dilewati di layar supaya bisa diperiksa, bukan hilang begitu saja.
+        const dilewati = new Set(
+          (data.barisDilewati as { tanggalTeks: string; keterangan: string; nominal: number }[]).map(
+            (d) => `${d.tanggalTeks}|${d.keterangan}|${d.nominal}`
+          )
+        );
+        setBaris((prev) =>
+          prev.filter((b) =>
+            dilewati.has(`${b.tanggalIso}|${b.keterangan}|${b.uangMasuk || b.uangKeluar}`)
+          )
+        );
+        setAdaYangDilewati(true);
+        toast.warning(
+          `${data.tersimpan} tersimpan, ${data.dilewati} dilewati karena sudah ada. Periksa di bawah.`
+        );
+      } else {
+        toast.success(`${data.tersimpan} transaksi tersimpan`);
+        setBaris([]);
+        setGambar([]);
+        setPdf(null);
+        setAdaYangDilewati(false);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan");
     } finally {
@@ -438,15 +457,37 @@ export default function RekapPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button varian="sekunder" onClick={() => setBaris([])}>
-                Buang hasil
+              <Button
+                varian="sekunder"
+                onClick={() => {
+                  setBaris([]);
+                  setAdaYangDilewati(false);
+                }}
+              >
+                {adaYangDilewati ? "Buang baris ini" : "Buang hasil"}
               </Button>
-              <Button varian="sukses" onClick={simpan} loading={menyimpan}>
+              <Button
+                varian="sukses"
+                onClick={() => simpan(adaYangDilewati)}
+                loading={menyimpan}
+              >
                 <Save className="h-4 w-4" />
-                Simpan ke Rekap
+                {adaYangDilewati ? "Tetap masukkan" : "Simpan ke Rekap"}
               </Button>
             </div>
           </div>
+
+          {adaYangDilewati && (
+            <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>
+                Baris di bawah ini <strong>belum tersimpan</strong> karena transaksi dengan tanggal,
+                nominal, dan keterangan yang sama persis sudah ada di rekening ini. Biasanya ini
+                screenshot yang tumpang tindih. Tapi kalau memang ada dua transaksi kembar yang
+                benar-benar terjadi, klik <strong>Tetap masukkan</strong>.
+              </span>
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

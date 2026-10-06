@@ -91,7 +91,8 @@ export async function POST(req: Request) {
         },
       });
       await hitungUlangSaldo(tx, rekeningId);
-      return dibuat;
+      // Baca ulang: `dibuat` masih memuat saldo 0 dari sebelum hitung ulang.
+      return tx.transaksi.findUniqueOrThrow({ where: { id: dibuat.id } });
     });
 
     return NextResponse.json({ transaksi });

@@ -22,12 +22,28 @@ export interface OpsiRekap {
 const ABU = "FFE5E7EB";
 const MERAH_MUDA = "FFFEE2E2";
 
+/**
+ * Excel menolak nama sheet yang mengandung * ? : \ / [ ] , lebih dari 31 karakter,
+ * atau diawali/diakhiri apostrof. Nama rekening diisi bebas oleh user, jadi harus
+ * dibersihkan — kalau tidak, export gagal dengan error 500 yang membingungkan.
+ */
+export function namaSheetAman(nama: string): string {
+  const bersih = nama
+    .replace(/[*?:\\/[\]]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^'+|'+$/g, "")
+    .slice(0, 31)
+    .trim();
+  return bersih || "Rekap";
+}
+
 export async function buildRekapWorkbook(
   rows: BarisRekapExcel[],
   opsi: OpsiRekap
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(opsi.namaRekening.slice(0, 31) || "Rekap");
+  const ws = wb.addWorksheet(namaSheetAman(opsi.namaRekening));
 
   ws.columns = [
     { header: "No.", key: "no", width: 6 },

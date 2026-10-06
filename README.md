@@ -114,8 +114,11 @@ Lihat [DEPLOY_EASYPANEL.md](DEPLOY_EASYPANEL.md). Di produksi pakai
 - **Parser PDF hanya untuk Mandiri**, dan dikalibrasi dari satu contoh e-Statement.
   Bank lain menyusul ketika contoh formatnya tersedia.
 - **Anti-duplikat bisa salah tolak.** Dua transaksi yang benar-benar kembar (tanggal,
-  nominal, dan keterangan sama persis) akan ikut ter-skip. Daftar yang dilewati selalu
-  ditampilkan supaya bisa dicek manual.
+  nominal, dan keterangan sama persis) akan ikut ter-skip. Baris yang ditolak tetap
+  ditahan di layar dengan penjelasan dan tombol **Tetap masukkan**, jadi tidak ada yang
+  hilang diam-diam.
+- **Belum ada UI untuk menambah transaksi manual.** Endpoint-nya ada
+  (`POST /api/transaksi`) tapi belum dipasang tombolnya di halaman Transaksi.
 - **Beberapa kode akun bernama sama persis** (kode 70202–70214 semuanya "Pinjaman
   Internal"), sehingga AI tidak bisa membedakannya dan akan mengosongkan kodenya.
   Perlu nama pembeda. Lihat Open Items di PRD v2.
