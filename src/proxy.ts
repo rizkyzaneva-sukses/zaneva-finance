@@ -1,0 +1,30 @@
+import { NextResponse, type NextRequest } from "next/server";
+
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health"];
+
+export function proxy(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    return NextResponse.next();
+  }
+
+  const cookieName = process.env.SESSION_COOKIE_NAME || "zaneva_mutasi_session";
+  const hasSession = req.cookies.has(cookieName);
+
+  if (!hasSession) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Belum login", type: "auth_required" }, { status: 401 });
+    }
+    const url = req.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("return_to", pathname);
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
