@@ -11,6 +11,7 @@ import {
   EmptyState,
   Field,
   INPUT_CLASS,
+  Modal,
   PageHeader,
   Skeleton,
 } from "@/components/ui/primitives";
@@ -207,12 +208,15 @@ export default function KodeAkunPage() {
         }
       />
 
-      {form && (
-        <Card className="mb-4">
-          <h2 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            {form.id ? "Ubah Kode Akun" : "Kode Akun Baru"}
-          </h2>
-          <form onSubmit={simpan} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Modal
+        buka={form !== null}
+        judul={form?.id ? `Ubah kode ${form.kode}` : "Kode Akun Baru"}
+        deskripsi={form?.id ? form.nama : undefined}
+        lebar="lg"
+        onTutup={() => setForm(null)}
+      >
+        {form && (
+          <form onSubmit={simpan} className="grid gap-4 sm:grid-cols-2">
             <Field label="Kode" required hint="Contoh: 402, 52001">
               <input
                 required
@@ -251,17 +255,17 @@ export default function KodeAkunPage() {
               options={OPSI_AKTIVITAS}
               placeholder="Belum diatur"
             />
-            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
-              <Button type="submit" loading={menyimpan}>
-                Simpan
-              </Button>
+            <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" varian="sekunder" onClick={() => setForm(null)}>
                 Batal
               </Button>
+              <Button type="submit" loading={menyimpan}>
+                Simpan
+              </Button>
             </div>
           </form>
-        </Card>
-      )}
+        )}
+      </Modal>
 
       <Card className="mb-4">
         <div className="flex flex-wrap items-end gap-3">

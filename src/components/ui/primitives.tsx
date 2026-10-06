@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Inbox } from "lucide-react";
+import { Loader2, Inbox, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const INPUT_CLASS =
@@ -136,6 +136,76 @@ export function Badge({
     <span className={cn("inline-flex rounded px-1.5 py-0.5 text-xs font-medium", peta[warna])}>
       {children}
     </span>
+  );
+}
+
+/**
+ * Modal form. Dipakai supaya tombol "ubah" di baris tabel membuka form di
+ * tempat, bukan melempar form ke atas halaman sehingga user harus scroll balik.
+ */
+export function Modal({
+  buka,
+  judul,
+  deskripsi,
+  lebar = "md",
+  onTutup,
+  children,
+}: {
+  buka: boolean;
+  judul: string;
+  deskripsi?: string;
+  lebar?: "md" | "lg";
+  onTutup: () => void;
+  children: React.ReactNode;
+}) {
+  React.useEffect(() => {
+    if (!buka) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onTutup();
+    };
+    window.addEventListener("keydown", onKey);
+    // Cegah halaman di belakang ikut ter-scroll saat modal terbuka
+    const overflowAwal = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = overflowAwal;
+    };
+  }, [buka, onTutup]);
+
+  if (!buka) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:items-center">
+      <button type="button" aria-label="Tutup" onClick={onTutup} className="fixed inset-0 bg-black/50" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={judul}
+        className={cn(
+          "relative my-4 w-full rounded-xl border border-gray-200 bg-card p-4 shadow-xl sm:p-5 dark:border-zinc-700",
+          lebar === "lg" ? "max-w-3xl" : "max-w-xl"
+        )}
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">{judul}</h2>
+            {deskripsi && (
+              <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{deskripsi}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onTutup}
+            aria-label="Tutup"
+            className="shrink-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }
 

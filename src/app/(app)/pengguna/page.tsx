@@ -11,6 +11,7 @@ import {
   EmptyState,
   Field,
   INPUT_CLASS,
+  Modal,
   PageHeader,
   Skeleton,
 } from "@/components/ui/primitives";
@@ -149,11 +150,12 @@ export default function PenggunaPage() {
         }
       />
 
-      {form && (
-        <Card className="mb-4">
-          <h2 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            {form.id ? `Ubah ${form.username}` : "Pengguna Baru"}
-          </h2>
+      <Modal
+        buka={form !== null}
+        judul={form?.id ? `Ubah ${form.username}` : "Pengguna Baru"}
+        onTutup={() => setForm(null)}
+      >
+        {form && (
           <form onSubmit={simpan} className="grid gap-4 sm:grid-cols-2">
             <Field label="Nama lengkap" required>
               <input
@@ -202,17 +204,17 @@ export default function PenggunaPage() {
               placeholder="Pilih role"
             />
 
-            <div className="flex items-end gap-2 sm:col-span-2">
-              <Button type="submit" loading={menyimpan}>
-                Simpan
-              </Button>
+            <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" varian="sekunder" onClick={() => setForm(null)}>
                 Batal
               </Button>
+              <Button type="submit" loading={menyimpan}>
+                Simpan
+              </Button>
             </div>
           </form>
-        </Card>
-      )}
+        )}
+      </Modal>
 
       <Card>
         {memuat ? (

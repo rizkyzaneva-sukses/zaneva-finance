@@ -10,6 +10,7 @@ import {
   EmptyState,
   Field,
   INPUT_CLASS,
+  Modal,
   PageHeader,
   Skeleton,
   Badge,
@@ -164,11 +165,12 @@ export default function RekeningPage() {
         }
       />
 
-      {form && (
-        <Card className="mb-4">
-          <h2 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            {form.id ? "Ubah Rekening" : "Rekening Baru"}
-          </h2>
+      <Modal
+        buka={form !== null}
+        judul={form?.id ? `Ubah ${form.nama}` : "Rekening Baru"}
+        onTutup={() => setForm(null)}
+      >
+        {form && (
           <form onSubmit={simpan} className="grid gap-4 sm:grid-cols-2">
             <Field label="Nama rekening" required hint='Bebas, contoh: "BCA CV 1"'>
               <input
@@ -223,17 +225,17 @@ export default function RekeningPage() {
               />
             </Field>
 
-            <div className="flex items-end gap-2 sm:col-span-2">
-              <Button type="submit" loading={menyimpan}>
-                Simpan
-              </Button>
+            <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" varian="sekunder" onClick={() => setForm(null)}>
                 Batal
               </Button>
+              <Button type="submit" loading={menyimpan}>
+                Simpan
+              </Button>
             </div>
           </form>
-        </Card>
-      )}
+        )}
+      </Modal>
 
       <Card>
         {memuat ? (
