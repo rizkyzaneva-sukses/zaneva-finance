@@ -1,74 +1,92 @@
 import ExcelJS from "exceljs";
-import type { BniTransaction, MandiriTransaction } from "@/lib/types";
+import { formatTanggal } from "@/lib/utils";
 
-export async function buildBniWorkbook(rows: BniTransaction[]): Promise<Buffer> {
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Mutasi BNI");
-
-  ws.columns = [
-    { header: "TANGGAL", key: "tanggal", width: 20 },
-    { header: "URAIAN TRANSAKSI", key: "uraian", width: 38 },
-    { header: "", key: "kosong", width: 4 },
-    { header: "TYPE", key: "type", width: 10 },
-    { header: "JUMLAH PEMBAYARAN", key: "jumlah", width: 20 },
-    { header: "SALDO", key: "saldo", width: 20 },
-  ];
-  ws.getRow(1).font = { bold: true };
-  ws.getRow(1).eachCell((cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE5E7EB" } };
-  });
-
-  rows.forEach((r) => {
-    const row = ws.addRow({
-      tanggal: r.tanggal,
-      uraian: r.uraian,
-      kosong: "",
-      type: r.type,
-      jumlah: r.jumlah,
-      saldo: r.saldo,
-    });
-    if (!r.yakin) {
-      row.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
-      });
-    }
-  });
-
-  ws.getColumn("jumlah").numFmt = "#,##0.00";
-  ws.getColumn("saldo").numFmt = "#,##0.00";
-
-  const buf = await wb.xlsx.writeBuffer();
-  return Buffer.from(buf);
+export interface BarisRekapExcel {
+  tanggal: Date | string;
+  kode: string;
+  keterangan: string;
+  uangMasuk: number;
+  uangKeluar: number;
+  saldo: number;
+  catatan: string;
+  /** Ditandai kalau AI ragu membacanya — diberi latar merah muda di file */
+  yakin?: boolean;
 }
 
-export async function buildMandiriWorkbook(rows: MandiriTransaction[]): Promise<Buffer> {
+export interface OpsiRekap {
+  namaRekening: string;
+  /** Baris saldo awal (kode 0000) yang ditaruh paling atas, seperti contoh rekap tim */
+  saldoAwal?: { tanggal: Date | string; nominal: number };
+}
+
+const ABU = "FFE5E7EB";
+const MERAH_MUDA = "FFFEE2E2";
+
+export async function buildRekapWorkbook(
+  rows: BarisRekapExcel[],
+  opsi: OpsiRekap
+): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet("Mutasi Mandiri");
+  const ws = wb.addWorksheet(opsi.namaRekening.slice(0, 31) || "Rekap");
 
   ws.columns = [
-    { header: "TANGGAL", key: "tanggal", width: 22 },
-    { header: "TRANSAKSI", key: "transaksi", width: 50 },
-    { header: "DEBIT", key: "debit", width: 18 },
-    { header: "KREDIT", key: "kredit", width: 18 },
-    { header: "SALDO", key: "saldo", width: 20 },
+    { header: "No.", key: "no", width: 6 },
+    { header: "Tanggal", key: "tanggal", width: 18 },
+    { header: "Kode", key: "kode", width: 10 },
+    { header: "Keterangan", key: "keterangan", width: 52 },
+    { header: "Uang masuk", key: "uangMasuk", width: 18 },
+    { header: "Uang keluar", key: "uangKeluar", width: 18 },
+    { header: "Saldo", key: "saldo", width: 20 },
+    { header: "Catatan", key: "catatan", width: 30 },
   ];
+
   ws.getRow(1).font = { bold: true };
   ws.getRow(1).eachCell((cell) => {
-    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE5E7EB" } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ABU } };
   });
 
-  rows.forEach((r) => {
-    const row = ws.addRow({ ...r, saldo: r.saldo ?? "" });
+  let no = 0;
+
+  if (opsi.saldoAwal) {
+    no += 1;
+    ws.addRow({
+      no,
+      tanggal: formatTanggal(opsi.saldoAwal.tanggal),
+      kode: "0000",
+      keterangan: "Saldo",
+      uangMasuk: opsi.saldoAwal.nominal,
+      uangKeluar: null,
+      saldo: opsi.saldoAwal.nominal,
+      catatan: "",
+    });
+  }
+
+  for (const r of rows) {
+    no += 1;
+    const row = ws.addRow({
+      no,
+      tanggal: formatTanggal(r.tanggal),
+      kode: r.kode,
+      keterangan: r.keterangan,
+      // Sel dikosongkan (bukan 0) supaya kolom yang tidak terpakai tidak ramai
+      uangMasuk: r.uangMasuk || null,
+      uangKeluar: r.uangKeluar || null,
+      saldo: r.saldo,
+      catatan: r.catatan,
+    });
     if (r.yakin === false) {
       row.eachCell((cell) => {
-        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: MERAH_MUDA } };
       });
     }
-  });
+  }
 
-  ws.getColumn("debit").numFmt = "#,##0.00";
-  ws.getColumn("kredit").numFmt = "#,##0.00";
-  ws.getColumn("saldo").numFmt = "#,##0.00";
+  for (const key of ["uangMasuk", "uangKeluar", "saldo"]) {
+    ws.getColumn(key).numFmt = "#,##0.00";
+    ws.getColumn(key).alignment = { horizontal: "right" };
+  }
+  ws.getColumn("no").alignment = { horizontal: "center" };
+  ws.views = [{ state: "frozen", ySplit: 1 }];
 
   const buf = await wb.xlsx.writeBuffer();
   return Buffer.from(buf);

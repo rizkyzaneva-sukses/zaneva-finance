@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
-import { isAuthenticated, unauthorized, apiError } from "@/lib/api-helpers";
+import { wajibLogin, apiError } from "@/lib/api-helpers";
+import { bolehInput } from "@/lib/auth";
 import { parseMandiriPdf } from "@/lib/mandiri-parser";
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+/** Parse e-Statement Mandiri (PDF berpassword). Bank lain belum punya parser PDF. */
 export async function POST(req: Request) {
-  if (!(await isAuthenticated())) return unauthorized();
+  const auth = await wajibLogin(bolehInput);
+  if (!auth.ok) return auth.response;
 
   try {
     const form = await req.formData();
@@ -25,14 +28,14 @@ export async function POST(req: Request) {
     const data = new Uint8Array(await file.arrayBuffer());
 
     try {
-      const result = await parseMandiriPdf(data, password);
-      if (result.transactions.length === 0) {
+      const hasil = await parseMandiriPdf(data, password);
+      if (hasil.baris.length === 0) {
         return NextResponse.json(
           { error: "Tidak ada baris transaksi yang terbaca dari PDF ini" },
           { status: 422 }
         );
       }
-      return NextResponse.json(result);
+      return NextResponse.json(hasil);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Gagal memproses PDF";
       if (message.includes("Password")) {

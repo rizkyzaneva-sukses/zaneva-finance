@@ -8,6 +8,13 @@
   --card: #ffffff;
   --border: #e5e7eb;
   --muted: #4b5563;
+
+  /* Warna grafik — slot kategorikal 1 & 2. Sudah divalidasi lolos semua check
+     (lightness band, chroma, pemisahan CVD, kontras) terhadap surface #ffffff. */
+  --chart-masuk: #2a78d6;
+  --chart-keluar: #eb6834;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #898781;
 }
 
 .dark {
@@ -16,6 +23,13 @@
   --card: #18181b;
   --border: #3f3f46;
   --muted: #a1a1aa;
+
+  /* Bukan pembalikan otomatis: step tersendiri untuk surface gelap #18181b,
+     divalidasi ulang sebagai satu set. */
+  --chart-masuk: #3987e5;
+  --chart-keluar: #d95926;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #898781;
 }
 
 @theme inline {

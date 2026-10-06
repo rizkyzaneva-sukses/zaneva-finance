@@ -83,7 +83,10 @@ Field: `nama` (bebas, contoh "BCA CV 1"), `bank` (BCA/MANDIRI/BRI/BNI/LAINNYA), 
 
 CRUD chart of accounts. Di-seed dari daftar ~150 kode milik Rizky (lampiran §9).
 
-Field: `kode` (unik, string karena ada `0000` dan `52001`), `nama`, `kelompok` (HARTA/UTANG/MODAL/PENDAPATAN/BEBAN/PEMBELIAN/PINJAMAN/ALOKASI/LAINNYA), `aktif`, `urutan`.
+Field: `kode` (unik, string karena ada `0000` dan `52001`), `nama`, `kelompok` (HARTA/UTANG/MODAL/PENDAPATAN/BEBAN/PEMBELIAN/PINJAMAN/ALOKASI/LAINNYA), `laporan`, `aktif`, `urutan`.
+
+- `laporan` = **masuk laporan apa**: `NERACA`, `LABA_RUGI`, `TIDAK_ADA` (sengaja tidak masuk laporan mana pun), atau kosong = *belum diatur*. Nilai awal hasil seed hanya tebakan dari kelompok (1xx/2xx/3xx/7xx → Neraca, 4xx/5xx/6xx → Laba Rugi); kode yang belum jelas (690, 699, 701, seluruh kelompok 8xx) dibiarkan *belum diatur*. Pemilik bisnis menyesuaikannya lewat UI.
+- Seed tidak menimpa nama, kelompok, maupun laporan kode yang sudah ada, supaya penyesuaian lewat UI tidak hilang saat seed dijalankan ulang.
 
 - Kode yang sudah dipakai transaksi tidak bisa dihapus, hanya dinonaktifkan.
 - Kode nonaktif tidak muncul di dropdown saran, tapi tetap tampil di transaksi lama.
@@ -109,6 +112,16 @@ Flow inti. Satu halaman, empat langkah berurutan di layar yang sama.
 - Baris terindikasi duplikat → ditandai dan **di-skip otomatis**, dengan ringkasan "N baris dilewati karena sudah ada" yang bisa dibuka detailnya.
 - Baris bisa dihapus sebelum simpan.
 - Tombol **Simpan ke Rekap** menulis ke DB.
+
+### 3.4a Split Transaksi (Must-have)
+
+Satu transaksi bank bisa dipecah jadi beberapa rincian, masing-masing dengan kode akun, nominal, dan keterangan sendiri. Contoh: penarikan ATM Rp 2.500.000 → Alokasi R 1.000.000 + Infaq 1.000.000 + Beban Operasional 500.000.
+
+- **Rincian yang dihitung** di laporan, breakdown dashboard, dan kolom kode di export. **Transaksi asli tetap tersimpan** sebagai induk: dipakai untuk saldo berjalan dan rekonsiliasi, dan tampil di kolom Catatan saat export (`Split dari: ...`).
+- **Total semua rincian harus persis sama** dengan nominal transaksi asli (dicek di UI dan di server, dalam Decimal). Minimal 2 rincian; nominal > 0; tiap rincian wajib punya kode akun. Arah (masuk/keluar) mengikuti transaksi asli.
+- Bisa dilakukan di preview Rekap (sebelum simpan) maupun di halaman Transaksi (susulan, termasuk mengubah atau membatalkan split).
+- Transaksi yang di-split tidak punya satu kode di induknya; mengubah kode induk ditolak. Membatalkan split mengembalikan transaksi ke "belum ada kode".
+- Export Excel: tiap rincian jadi satu baris, saldo berjalan turun per rincian sehingga baris terakhir tetap berakhir di saldo bank.
 
 ### 3.5 Anti-Duplikat (Must-have)
 
@@ -151,6 +164,22 @@ Empat blok, semuanya menghormati filter periode global:
 2. **Cash flow masuk vs keluar** — total masuk, total keluar, dan net per periode. Grafik tren bulanan (bar/line), bisa difilter per rekening atau gabungan.
 3. **Breakdown per kode akun** — tabel + grafik: total nominal dikelompokkan per kode akun, diurutkan dari terbesar. Bisa di-drill ke daftar transaksinya.
 4. **Baris yang belum beres** — daftar transaksi dengan kode kosong, status masih `SARAN_AI`, atau ditandai tidak yakin oleh AI. Berfungsi sebagai to-do list tim, dengan link langsung ke baris yang bersangkutan.
+
+### 3.8a Laporan Keuangan (Must-have)
+
+Halaman **Laporan** dengan empat tab, difilter periode (preset atau kustom) dan rekening. Semua laporan **basis kas**, dihitung dari satu kumpulan entri (transaksi tanpa split + rincian split), dalam sen (bilangan bulat).
+
+- **Laba Rugi** — Pendapatan − Pembelian = Laba Kotor; − Beban = Laba Bersih. Hanya kode ber-`laporan = LABA_RUGI`.
+- **Neraca** — per tanggal "sampai". Aset = kas per rekening (saldo awal + seluruh mutasi) + aset lain (kelompok Harta); Liabilitas = Utang + Pinjaman; Ekuitas = saldo awal rekening (modal awal) + Modal/Prive + laba ditahan + laba tahun berjalan.
+- **Arus Kas** — metode langsung, dikelompokkan per `aktivitasKas` kode akun: Operasi, Investasi, Pendanaan, Pindah dana. Saldo kas awal + kenaikan = saldo kas akhir = total kas di Neraca.
+- **Perubahan Modal** — modal awal + setoran modal − prive + laba bersih = modal akhir, dicocokkan dengan Total Ekuitas di Neraca.
+
+Aturan penting:
+- Identitas `Kas + Aset lain = Saldo awal + Liabilitas + Modal + Laba + Belum diklasifikasi` selalu terjaga. **Belum diklasifikasi** menampung transaksi tanpa kode atau yang kodenya belum diatur masuk laporan (atau diatur `TIDAK_ADA`); nilainya ditampilkan mencolok dengan tautan untuk memperbaiki, sehingga Neraca tidak pernah "dipaksa" seimbang secara diam-diam.
+- Kode kelompok selain Harta/Utang/Pinjaman/Modal yang ditandai Neraca: saldo debit jadi aset, saldo kredit jadi liabilitas.
+- `aktivitasKas` pada Kode Akun: `OPERASI | INVESTASI | PENDANAAN | PINDAH_DANA`, nullable (belum diatur), nilai awal dari seed dan bisa diubah di UI.
+
+Keterbatasan yang diketahui: saldo awal rekening dihitung sejak awal pembukuan tanpa memperhatikan `tanggalSaldoAwal`, jadi rekening yang dibuka di tengah tahun tetap muncul di laporan periode sebelum tanggal itu. Pembelian ke vendor dihitung penuh sebagai biaya (belum ada persediaan akhir).
 
 ### 3.9 Audit Trail (Must-have)
 
@@ -298,6 +327,7 @@ erDiagram
         string kode UK
         string nama
         enum kelompok
+        enum laporan
         boolean aktif
         int urutan
     }

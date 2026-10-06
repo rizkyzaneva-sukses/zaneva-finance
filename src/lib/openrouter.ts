@@ -1,56 +1,42 @@
-import type { BniTransaction, MandiriTransaction } from "@/lib/types";
+import { parseTanggalIndo, tanggalKeIso } from "@/lib/utils";
+import type { BarisParsing } from "@/lib/types";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const BNI_PROMPT = `Kamu membaca screenshot mutasi rekening BNI (mobile/internet banking).
-Ekstrak SEMUA baris transaksi yang terlihat di gambar ini menjadi JSON array, tanpa teks lain di luar JSON.
+/**
+ * Prompt OCR generik — sengaja tidak menyebut bank tertentu supaya satu prompt
+ * melayani BCA, Mandiri, BRI, BNI, dan rekening lain tanpa perlu cabang kode.
+ */
+const PROMPT_MUTASI = `Kamu membaca screenshot/foto mutasi rekening bank Indonesia (mobile banking, internet banking, atau cetakan rekening koran).
+Bank-nya bisa BCA, Mandiri, BRI, BNI, atau bank lain — tata letaknya berbeda-beda, tapi tugasmu sama.
 
+Ekstrak SEMUA baris transaksi yang terlihat menjadi JSON array, tanpa teks lain di luar JSON.
 Setiap elemen array wajib punya field persis seperti ini:
 {
-  "tanggal": "1 October 2026",       // tanggal transaksi persis seperti tertulis di gambar
-  "uraian": "PT MIDTRANS",            // uraian/nama transaksi lengkap, jangan dipotong
-  "type": "Db",                       // "Db" kalau debit/uang keluar, "Cr" kalau kredit/uang masuk
-  "jumlah": 399000.00,                 // nominal transaksi, angka murni tanpa simbol/pemisah ribuan
-  "saldo": 55509528.00,                // saldo setelah transaksi ini, angka murni
-  "yakin": true                        // false kalau tulisan buram/terpotong/kamu tidak yakin membacanya
+  "tanggal": "1 November 2023",   // tanggal transaksi persis seperti tertulis di gambar
+  "keterangan": "TRSF E-BANKING CR PT MIDTRANS",  // uraian transaksi selengkap mungkin, jangan dipotong
+  "arah": "masuk",                // "masuk" kalau uang bertambah, "keluar" kalau uang berkurang
+  "nominal": 218000.00,           // angka murni tanpa Rp dan tanpa pemisah ribuan
+  "saldo": 10218000.00,           // saldo setelah transaksi ini kalau ditampilkan; null kalau tidak ada
+  "yakin": true                   // false kalau tulisan buram/terpotong/kamu ragu membacanya
 }
+
+Cara menentukan "arah":
+- Tanda "+" , warna hijau, label "CR"/"Cr."/"Kredit" => "masuk"
+- Tanda "-" , warna merah, label "DB"/"Db."/"Debit" => "keluar"
+- Kalau ada dua kolom terpisah (Debit dan Kredit), kolom mana yang terisi menentukan arahnya.
 
 Aturan penting:
 - Urutkan sesuai urutan baris di gambar (atas ke bawah).
-- Jangan mengarang baris yang tidak benar-benar terlihat.
-- Kalau ada bagian yang buram/tidak terbaca jelas, tetap masukkan baris itu dengan field yang bisa dibaca, dan set "yakin": false.
-- Kalau sama sekali tidak ada transaksi terlihat di gambar, balas array kosong [].
-- Balas HANYA dengan JSON array yang valid, tanpa markdown code fence, tanpa penjelasan.`;
+- Kalau tampilannya berupa grup tanggal (header tanggal diikuti beberapa kartu transaksi), pakai tanggal grup di atasnya untuk setiap kartu di bawahnya.
+- Beberapa tampilan mobile banking TIDAK menampilkan saldo berjalan. Kalau begitu isi "saldo": null. Jangan pernah menebak saldo.
+- JANGAN mengarang baris yang tidak benar-benar terlihat.
+- Kalau ada bagian buram/terpotong, tetap masukkan barisnya dengan field yang bisa dibaca, lalu set "yakin": false.
+- Kalau tidak ada transaksi sama sekali di gambar, balas array kosong [].
+- Balas HANYA JSON array yang valid, tanpa markdown code fence, tanpa penjelasan.`;
 
-const MANDIRI_SS_PROMPT = `Kamu membaca screenshot daftar transaksi/mutasi dari aplikasi mobile banking Mandiri (Livin').
-Tampilannya berupa grup tanggal (misal "02 Okt 2026") diikuti beberapa kartu transaksi di bawahnya,
-sampai grup tanggal berikutnya. Tiap kartu berisi judul transaksi (misal "Transfer Rupiah"), nominal
-dengan tanda warna di kanan (hijau/"+" = uang masuk, merah/"-" = uang keluar), dan 1-3 baris keterangan
-di bawah judul (channel transfer, nama bank, nama pengirim/penerima, nomor rekening).
-
-Ekstrak SEMUA kartu transaksi yang terlihat menjadi JSON array, tanpa teks lain di luar JSON.
-Setiap elemen array wajib punya field persis seperti ini:
-{
-  "tanggal": "02 Okt 2026",            // ambil dari header grup tanggal yang menaungi kartu ini, apa adanya seperti tertulis
-  "transaksi": "Transfer Rupiah - Transfer BI Fast - dari BPD JATIM - ZUMAROH 0372182768", // judul + semua baris keterangan, digabung dengan " - "
-  "arah": "masuk",                      // "masuk" kalau nominal hijau/ada tanda "+", "keluar" kalau merah/tanda "-"
-  "nominal": 193000.00,                 // angka murni tanpa simbol Rp/pemisah ribuan
-  "yakin": true                         // false kalau ada bagian buram/terpotong/tidak yakin
-}
-
-Aturan penting:
-- Saldo berjalan TIDAK ditampilkan di layar ini, jangan diisi/ditebak sama sekali.
-- Urutkan sesuai urutan tampil di gambar (atas ke bawah).
-- Jangan mengarang kartu yang tidak benar-benar terlihat.
-- Kalau ada bagian yang buram/terpotong, tetap masukkan dengan field yang bisa dibaca, set "yakin": false.
-- Kalau sama sekali tidak ada transaksi terlihat, balas array kosong [].
-- Balas HANYA dengan JSON array yang valid, tanpa markdown code fence, tanpa penjelasan.`;
-
-interface OpenRouterChoice {
-  message?: { content?: string };
-}
 interface OpenRouterResponse {
-  choices?: OpenRouterChoice[];
+  choices?: { message?: { content?: string } }[];
   error?: { message?: string };
 }
 
@@ -60,7 +46,7 @@ function extractJsonArray(text: string): unknown[] {
     const parsed = JSON.parse(cleaned);
     if (Array.isArray(parsed)) return parsed;
   } catch {
-    // lanjut ke fallback di bawah
+    // lanjut ke fallback
   }
   const match = cleaned.match(/\[[\s\S]*\]/);
   if (match) {
@@ -71,7 +57,7 @@ function extractJsonArray(text: string): unknown[] {
 }
 
 function toNumber(value: unknown): number {
-  if (typeof value === "number") return value;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
     const n = Number(value.replace(/[^0-9.-]/g, ""));
     return Number.isFinite(n) ? n : 0;
@@ -79,7 +65,16 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
-async function callOpenRouterVision(prompt: string, dataUrl: string): Promise<unknown[]> {
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = toNumber(value);
+  return n === 0 && value !== 0 && value !== "0" ? null : n;
+}
+
+async function panggilOpenRouter(
+  messages: unknown[],
+  { jsonMode = false }: { jsonMode?: boolean } = {}
+): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY belum diisi di environment variable");
@@ -91,20 +86,13 @@ async function callOpenRouterVision(prompt: string, dataUrl: string): Promise<un
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "X-Title": "Zaneva Mutasi",
+      "X-Title": "Zaneva Finance",
     },
     body: JSON.stringify({
       model,
       temperature: 0,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
+      messages,
+      ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
   });
 
@@ -114,81 +102,125 @@ async function callOpenRouterVision(prompt: string, dataUrl: string): Promise<un
   }
 
   const json = (await res.json()) as OpenRouterResponse;
-  if (json.error) {
-    throw new Error(`OpenRouter error: ${json.error.message ?? "unknown"}`);
-  }
+  if (json.error) throw new Error(`OpenRouter error: ${json.error.message ?? "unknown"}`);
+
   const content = json.choices?.[0]?.message?.content;
-  if (!content) {
-    throw new Error("OpenRouter tidak mengembalikan konten");
-  }
-
-  return extractJsonArray(content);
+  if (!content) throw new Error("OpenRouter tidak mengembalikan konten");
+  return content;
 }
 
-export async function parseBniImage(
+/** Tahap 1 — OCR satu gambar mutasi jadi baris transaksi mentah. */
+export async function parseGambarMutasi(
   dataUrl: string,
   sumberFile: string
-): Promise<BniTransaction[]> {
-  const rawRows = await callOpenRouterVision(BNI_PROMPT, dataUrl);
+): Promise<BarisParsing[]> {
+  const content = await panggilOpenRouter([
+    {
+      role: "user",
+      content: [
+        { type: "text", text: PROMPT_MUTASI },
+        { type: "image_url", image_url: { url: dataUrl } },
+      ],
+    },
+  ]);
 
-  return rawRows.map((row): BniTransaction => {
-    const r = row as Record<string, unknown>;
-    return {
-      tanggal: String(r.tanggal ?? "").trim(),
-      uraian: String(r.uraian ?? "").trim(),
-      type: String(r.type ?? "").trim(),
-      jumlah: toNumber(r.jumlah),
-      saldo: toNumber(r.saldo),
-      yakin: r.yakin !== false,
-      sumber: sumberFile,
-    };
-  });
-}
-
-/** Buang baris yang persis identik (biasa muncul dari screenshot yang overlap karena scroll) */
-export function dedupeBniTransactions(rows: BniTransaction[]): BniTransaction[] {
-  const seen = new Set<string>();
-  const result: BniTransaction[] = [];
-  for (const r of rows) {
-    const key = `${r.tanggal}|${r.uraian}|${r.type}|${r.jumlah}|${r.saldo}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(r);
-  }
-  return result;
-}
-
-export async function parseMandiriImage(
-  dataUrl: string,
-  sumberFile: string
-): Promise<MandiriTransaction[]> {
-  const rawRows = await callOpenRouterVision(MANDIRI_SS_PROMPT, dataUrl);
-
-  return rawRows.map((row): MandiriTransaction => {
+  return extractJsonArray(content).map((row): BarisParsing => {
     const r = row as Record<string, unknown>;
     const nominal = toNumber(r.nominal);
     const masuk = String(r.arah ?? "").trim().toLowerCase() === "masuk";
+    const tanggalTeks = String(r.tanggal ?? "").trim();
+    const tanggal = parseTanggalIndo(tanggalTeks);
+
     return {
-      tanggal: String(r.tanggal ?? "").trim(),
-      transaksi: String(r.transaksi ?? "").trim(),
-      debit: masuk ? 0 : nominal,
-      kredit: masuk ? nominal : 0,
-      saldo: null,
-      yakin: r.yakin !== false,
-      sumber: sumberFile,
+      tanggalTeks,
+      tanggalIso: tanggal ? tanggalKeIso(tanggal) : null,
+      keterangan: String(r.keterangan ?? "").trim(),
+      uangMasuk: masuk ? nominal : 0,
+      uangKeluar: masuk ? 0 : nominal,
+      saldoBank: toNumberOrNull(r.saldo),
+      // tanggal tak terbaca = baris tidak bisa dipercaya penuh
+      yakin: r.yakin !== false && tanggal !== null,
+      sumberFile,
     };
   });
 }
 
-/** Buang baris yang persis identik (biasa muncul dari screenshot yang overlap karena scroll) */
-export function dedupeMandiriTransactions(rows: MandiriTransaction[]): MandiriTransaction[] {
+/** Buang baris yang identik — lazim muncul dari screenshot yang overlap karena scroll. */
+export function dedupeHasilParsing(rows: BarisParsing[]): BarisParsing[] {
   const seen = new Set<string>();
-  const result: MandiriTransaction[] = [];
+  const hasil: BarisParsing[] = [];
   for (const r of rows) {
-    const key = `${r.tanggal}|${r.transaksi}|${r.debit}|${r.kredit}`;
+    const key = `${r.tanggalTeks}|${r.keterangan}|${r.uangMasuk}|${r.uangKeluar}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    result.push(r);
+    hasil.push(r);
   }
-  return result;
+  return hasil;
+}
+
+export interface OpsiKodeAkun {
+  id: string;
+  kode: string;
+  nama: string;
+}
+
+/**
+ * Tahap 2 — sarankan kode akun untuk tiap keterangan transaksi.
+ *
+ * Dipisah dari OCR supaya: akurasi tiap tahap tidak saling mengganggu, bisa
+ * dihitung ulang tanpa OCR ulang kalau chart of accounts berubah, dan jauh
+ * lebih murah (teks saja, tanpa gambar).
+ */
+export async function sarankanKodeAkun(
+  keterangan: { index: number; teks: string; arah: "masuk" | "keluar" }[],
+  daftarKode: OpsiKodeAkun[]
+): Promise<Map<number, string>> {
+  if (keterangan.length === 0) return new Map();
+
+  const daftar = daftarKode.map((k) => `${k.kode} = ${k.nama}`).join("\n");
+  const transaksi = keterangan
+    .map((k) => `${k.index}. [${k.arah}] ${k.teks}`)
+    .join("\n");
+
+  const prompt = `Kamu membantu tim keuangan mengklasifikasikan transaksi bank ke kode akun pembukuan.
+
+DAFTAR KODE AKUN YANG TERSEDIA:
+${daftar}
+
+DAFTAR TRANSAKSI (format: nomor. [arah uang] keterangan):
+${transaksi}
+
+Tugas: tentukan kode akun paling tepat untuk setiap transaksi.
+
+Aturan penting:
+- Balas HANYA JSON object dengan bentuk {"hasil":[{"index":0,"kode":"402"}, ...]}
+- "kode" HARUS salah satu kode yang ada di daftar di atas, disalin persis.
+- Kalau kamu tidak yakin, atau beberapa kode sama-sama masuk akal dan tidak ada petunjuk pembeda di keterangannya, isi "kode": null. JANGAN menebak.
+- Perhatikan arah uang: transaksi "masuk" biasanya Pendapatan/Penjualan/Pinjaman diterima; transaksi "keluar" biasanya Beban/Pembelian.
+- Beberapa kode punya nama yang sama persis satu sama lain. Kalau keterangan transaksi tidak memberi petunjuk untuk memilih di antara mereka, isi null.
+- Sertakan SEMUA nomor transaksi di jawabanmu.`;
+
+  const content = await panggilOpenRouter(
+    [{ role: "user", content: prompt }],
+    { jsonMode: true }
+  );
+
+  let parsed: { hasil?: { index?: unknown; kode?: unknown }[] };
+  try {
+    parsed = JSON.parse(content.trim().replace(/^```json?/i, "").replace(/```$/, "").trim());
+  } catch {
+    throw new Error("Respons AI klasifikasi bukan JSON yang valid");
+  }
+
+  const kodeValid = new Set(daftarKode.map((k) => k.kode));
+  const hasil = new Map<number, string>();
+  for (const item of parsed.hasil ?? []) {
+    const index = Number(item.index);
+    const kode = item.kode == null ? null : String(item.kode).trim();
+    // Kode karangan AI yang tidak ada di master sengaja dibuang, bukan dipaksa masuk.
+    if (Number.isInteger(index) && kode && kodeValid.has(kode)) {
+      hasil.set(index, kode);
+    }
+  }
+  return hasil;
 }

@@ -2,16 +2,15 @@ import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
 export interface SessionData {
-  isLoggedIn?: boolean;
+  userId?: string;
 }
 
 /**
  * Resolve & validasi secret saat DIPANGGIL (runtime), bukan saat module load.
  *
  * Fix: validasi sebelumnya ada di module scope, sehingga `next build` selalu
- * gagal dengan "Failed to collect page data for /api/export/bni" — karena saat
- * build NODE_ENV sudah "production" tapi SESSION_SECRET belum ter-inject.
- * Dengan validasi lazy, build tetap aman dan proteksi tetap jalan di runtime.
+ * gagal dengan "Failed to collect page data" — karena saat build NODE_ENV sudah
+ * "production" tapi SESSION_SECRET belum ter-inject.
  */
 function resolveSecret(): string {
   const secret = process.env.SESSION_SECRET;
@@ -21,10 +20,12 @@ function resolveSecret(): string {
   return secret || "dev_only_password_at_least_32_characters_long";
 }
 
+export const COOKIE_NAME = process.env.SESSION_COOKIE_NAME || "zaneva_finance_session";
+
 export function getSessionOptions(): SessionOptions {
   return {
     password: resolveSecret(),
-    cookieName: process.env.SESSION_COOKIE_NAME || "zaneva_mutasi_session",
+    cookieName: COOKIE_NAME,
     cookieOptions: {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

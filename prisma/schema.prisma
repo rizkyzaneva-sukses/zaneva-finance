@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  OWNER
+  ADMIN
+  STAFF
+  VIEWER
+}
+
+enum Bank {
+  BCA
+  MANDIRI
+  BRI
+  BNI
+  LAINNYA
+}
+
+enum Kelompok {
+  HARTA
+  UTANG
+  MODAL
+  PENDAPATAN
+  PEMBELIAN
+  BEBAN
+  PINJAMAN
+  ALOKASI
+  LAINNYA
+}
+
+enum Laporan {
+  NERACA
+  LABA_RUGI
+  TIDAK_ADA
+}
+
+enum AktivitasKas {
+  OPERASI
+  INVESTASI
+  PENDANAAN
+  /// Perpindahan kas/dana antar rekening atau ke kas tunai — bukan arus kas masuk/keluar usaha
+  PINDAH_DANA
+}
+
+enum StatusKode {
+  KOSONG
+  SARAN_AI
+  DIKONFIRMASI
+}
+
+enum Sumber {
+  SCREENSHOT
+  PDF
+  MANUAL
+}
+
+enum AksiAudit {
+  BUAT
+  UBAH
+  HAPUS
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nama         String
+  username     String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  aktif        Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transaksiDibuat Transaksi[] @relation("TransaksiDibuat")
+  transaksiDiubah Transaksi[] @relation("TransaksiDiubah")
+  auditLogs       AuditLog[]
+}
+
+model Rekening {
+  id            String  @id @default(cuid())
+  nama          String  @unique
+  bank          Bank
+  nomorRekening String?
+
+  /// Titik nol pembukuan rekening ini — baris pertama rekap (kode 0000 Saldo).
+  saldoAwal        Decimal  @default(0) @db.Decimal(18, 2)
+  tanggalSaldoAwal DateTime @db.Date
+
+  aktif     Boolean  @default(true)
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transaksi Transaksi[]
+}
+
+model KodeAkun {
+  id       String   @id @default(cuid())
+  kode     String   @unique
+  nama     String
+  kelompok Kelompok
+
+  /// Masuk laporan apa. null = belum diatur (sengaja dibedakan dari TIDAK_ADA,
+  /// yang artinya sudah diputuskan memang tidak masuk laporan mana pun).
+  laporan Laporan?
+
+  /// Masuk bagian mana di Laporan Arus Kas. null = belum diatur.
+  aktivitasKas AktivitasKas?
+
+  /// Kode bawaan sistem (0000 Saldo) — tidak bisa dihapus/dinonaktifkan dari UI.
+  sistem Boolean @default(false)
+
+  aktif     Boolean  @default(true)
+  urutan    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transaksi Transaksi[]
+  rincian   TransaksiRincian[]
+}
+
+model Transaksi {
+  id         String    @id @default(cuid())
+  rekeningId String
+  rekening   Rekening  @relation(fields: [rekeningId], references: [id])
+  kodeAkunId String?
+  kodeAkun   KodeAkun? @relation(fields: [kodeAkunId], references: [id])
+
+  tanggal DateTime @db.Date
+
+  /// Tie-breaker urutan untuk transaksi di tanggal yang sama (menentukan saldo berjalan).
+  urutanInput Int @default(0)
+
+  keterangan String
+  uangMasuk  Decimal @default(0) @db.Decimal(18, 2)
+  uangKeluar Decimal @default(0) @db.Decimal(18, 2)
+
+  /// Saldo berjalan hasil hitungan sistem.
+  saldo Decimal @default(0) @db.Decimal(18, 2)
+
+  /// Saldo yang terbaca di mutasi bank — hanya pembanding untuk rekonsiliasi.
+  saldoBank Decimal? @db.Decimal(18, 2)
+
+  catatan    String?
+  statusKode StatusKode @default(KOSONG)
+  sumber     Sumber     @default(SCREENSHOT)
+  yakin      Boolean    @default(true)
+  dedupeHash String
+
+  createdById String?
+  createdBy   User?    @relation("TransaksiDibuat", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?    @relation("TransaksiDiubah", fields: [updatedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Rincian split. Kalau ada, rincian inilah yang dihitung per kode akun di
+  /// laporan; baris induk ini tetap jadi catatan asli dari bank dan tetap
+  /// dipakai untuk saldo berjalan & rekonsiliasi.
+  rincian TransaksiRincian[]
+
+  @@unique([rekeningId, dedupeHash])
+  @@index([rekeningId, tanggal, urutanInput])
+  @@index([kodeAkunId])
+  @@index([statusKode])
+}
+
+model TransaksiRincian {
+  id          String    @id @default(cuid())
+  transaksiId String
+  transaksi   Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+  kodeAkunId  String
+  kodeAkun    KodeAkun  @relation(fields: [kodeAkunId], references: [id])
+
+  /// Selalu positif; arah (masuk/keluar) mengikuti transaksi induknya.
+  nominal    Decimal @db.Decimal(18, 2)
+  keterangan String?
+  urutan     Int     @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([transaksiId])
+  @@index([kodeAkunId])
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  userId    String?
+  user      User?     @relation(fields: [userId], references: [id])
+  entitas   String
+  entitasId String
+  aksi      AksiAudit
+  dataLama  Json?
+  dataBaru  Json?
+  createdAt DateTime  @default(now())
+
+  @@index([entitas, entitasId])
+  @@index([createdAt])
+}

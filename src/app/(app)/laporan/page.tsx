@@ -1,0 +1,617 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Badge,
+  Card,
+  EmptyState,
+  INPUT_CLASS,
+  PageHeader,
+  Skeleton,
+} from "@/components/ui/primitives";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { cn, formatRupiah } from "@/lib/utils";
+import type { BarisLaporan, HasilLaporan } from "@/lib/laporan";
+
+type Tab = "laba-rugi" | "neraca" | "arus-kas" | "perubahan-modal";
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: "laba-rugi", label: "Laba Rugi" },
+  { key: "neraca", label: "Neraca" },
+  { key: "arus-kas", label: "Arus Kas" },
+  { key: "perubahan-modal", label: "Perubahan Modal" },
+];
+
+const PRESET = [
+  { value: "tahun-ini", label: "Tahun ini" },
+  { value: "kuartal-ini", label: "Kuartal ini" },
+  { value: "bulan-ini", label: "Bulan ini" },
+  { value: "bulan-lalu", label: "Bulan lalu" },
+  { value: "semua", label: "Semua data" },
+  { value: "kustom", label: "Kustom" },
+];
+
+const NAMA_BULAN = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+];
+
+/** YYYY-MM-DD dari komponen lokal — bukan toISOString, supaya tidak geser sehari karena zona waktu. */
+function iso(y: number, m: number, d: number) {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+function hitungPreset(kunci: string): { dari: string; sampai: string } | null {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const hariIni = iso(y, m, now.getDate());
+  switch (kunci) {
+    case "tahun-ini":
+      return { dari: iso(y, 0, 1), sampai: hariIni };
+    case "kuartal-ini": {
+      const awal = Math.floor(m / 3) * 3;
+      return { dari: iso(y, awal, 1), sampai: hariIni };
+    }
+    case "bulan-ini":
+      return { dari: iso(y, m, 1), sampai: hariIni };
+    case "bulan-lalu": {
+      const akhir = new Date(y, m, 0);
+      return { dari: iso(akhir.getFullYear(), akhir.getMonth(), 1), sampai: iso(akhir.getFullYear(), akhir.getMonth(), akhir.getDate()) };
+    }
+    case "semua":
+      return { dari: "2000-01-01", sampai: hariIni };
+    default:
+      return null;
+  }
+}
+
+function tanggalPanjang(isoStr: string) {
+  const [y, m, d] = isoStr.split("-").map(Number);
+  return `${d} ${NAMA_BULAN[m - 1]} ${y}`;
+}
+
+/** Negatif ditulis dalam kurung, sesuai kebiasaan laporan keuangan. */
+function Nilai({ n, tebal }: { n: number; tebal?: boolean }) {
+  const negatif = n < 0;
+  return (
+    <span
+      className={cn(
+        "tabular-nums",
+        tebal && "font-semibold",
+        negatif ? "text-red-700 dark:text-red-400" : "text-gray-900 dark:text-gray-50"
+      )}
+    >
+      {negatif ? `(${formatRupiah(-n)})` : formatRupiah(n)}
+    </span>
+  );
+}
+
+function Judul({ children }: { children: React.ReactNode }) {
+  return (
+    <tr>
+      <td
+        colSpan={3}
+        className="pb-1 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400"
+      >
+        {children}
+      </td>
+    </tr>
+  );
+}
+
+function Garis({
+  kode,
+  nama,
+  nilai,
+  catatan,
+}: {
+  kode?: string;
+  nama: string;
+  nilai: number;
+  catatan?: string;
+}) {
+  return (
+    <tr className="border-b border-gray-100 dark:border-zinc-800">
+      <td className="w-14 whitespace-nowrap py-1.5 pr-2 font-mono text-xs text-gray-600 sm:w-20 dark:text-gray-400">
+        {kode}
+      </td>
+      <td className="py-1.5 pr-3 text-gray-900 dark:text-gray-50">
+        {nama}
+        {catatan && (
+          <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">{catatan}</span>
+        )}
+      </td>
+      <td className="whitespace-nowrap py-1.5 text-right">
+        <Nilai n={nilai} />
+      </td>
+    </tr>
+  );
+}
+
+function Total({ label, nilai, kuat }: { label: string; nilai: number; kuat?: boolean }) {
+  return (
+    <tr className={cn(kuat ? "border-y-2" : "border-t", "border-gray-300 dark:border-zinc-600")}>
+      <td colSpan={2} className="py-2 pr-3 font-semibold text-gray-900 dark:text-gray-50">
+        {label}
+      </td>
+      <td className="whitespace-nowrap py-2 text-right">
+        <Nilai n={nilai} tebal />
+      </td>
+    </tr>
+  );
+}
+
+function Daftar({ baris }: { baris: BarisLaporan[] }) {
+  return (
+    <>
+      {baris.map((b) => (
+        <Garis key={b.kodeAkunId ?? "-"} kode={b.kode} nama={b.nama} nilai={b.nilai} />
+      ))}
+    </>
+  );
+}
+
+function Kosong() {
+  return (
+    <tr>
+      <td colSpan={3} className="py-2 text-sm text-gray-600 dark:text-gray-400">
+        Tidak ada transaksi.
+      </td>
+    </tr>
+  );
+}
+
+function Tabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <tbody>{children}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function PeringatanBelumDiatur({
+  baris,
+  konteks,
+}: {
+  baris: HasilLaporan["labaRugi"]["luarLaporan"];
+  konteks: string;
+}) {
+  const perluDiatur = baris.filter((b) => b.alasan !== "TIDAK_MASUK_LAPORAN");
+  if (perluDiatur.length === 0) return null;
+  const total = perluDiatur.reduce((s, b) => s + b.nilai, 0);
+  const jumlahTransaksi = perluDiatur.reduce((s, b) => s + b.jumlahTransaksi, 0);
+
+  return (
+    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+      <div className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div>
+          <strong>
+            {jumlahTransaksi} transaksi (net {formatRupiah(total)}) belum masuk {konteks}.
+          </strong>{" "}
+          Kodenya belum diatur masuk laporan apa, atau transaksinya belum diberi kode.
+          <ul className="mt-1.5 list-disc pl-5 text-xs">
+            {perluDiatur.slice(0, 6).map((b) => (
+              <li key={b.kodeAkunId ?? "-"}>
+                <span className="font-mono">{b.kode}</span> {b.nama} — {b.jumlahTransaksi} transaksi,{" "}
+                {formatRupiah(b.nilai)}
+              </li>
+            ))}
+            {perluDiatur.length > 6 && <li>dan {perluDiatur.length - 6} kode lainnya</li>}
+          </ul>
+          <div className="mt-2 flex flex-wrap gap-3 text-xs font-medium underline">
+            <Link href="/master/kode-akun">Atur di Kode Akun</Link>
+            <Link href="/transaksi?belumBeres=1">Lihat transaksi belum beres</Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LabaRugi({ d }: { d: HasilLaporan["labaRugi"] }) {
+  return (
+    <>
+      <PeringatanBelumDiatur baris={d.luarLaporan} konteks="Laba Rugi" />
+      <Tabel>
+        <Judul>Pendapatan</Judul>
+        {d.pendapatan.length ? <Daftar baris={d.pendapatan} /> : <Kosong />}
+        <Total label="Total Pendapatan" nilai={d.totalPendapatan} />
+
+        <Judul>Pembelian ke vendor</Judul>
+        {d.pembelian.length ? <Daftar baris={d.pembelian} /> : <Kosong />}
+        <Total label="Total Pembelian" nilai={d.totalPembelian} />
+
+        <Total label="Laba Kotor" nilai={d.labaKotor} kuat />
+
+        <Judul>Beban</Judul>
+        {d.beban.length ? <Daftar baris={d.beban} /> : <Kosong />}
+        <Total label="Total Beban" nilai={d.totalBeban} />
+
+        <Total label={d.labaBersih >= 0 ? "Laba Bersih" : "Rugi Bersih"} nilai={d.labaBersih} kuat />
+      </Tabel>
+      <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+        Basis kas: pendapatan dan beban dicatat saat uang masuk atau keluar di rekening, bukan saat
+        transaksinya terjadi. Pembelian ke vendor dihitung penuh sebagai biaya periode ini, tanpa
+        memperhitungkan persediaan akhir.
+      </p>
+    </>
+  );
+}
+
+function Neraca({ d }: { d: HasilLaporan["neraca"] }) {
+  const e = d.ekuitas;
+  return (
+    <>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {d.seimbang ? (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-sm font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
+            <CheckCircle2 className="h-4 w-4" />
+            Neraca seimbang
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4" />
+            Tidak seimbang, selisih {formatRupiah(d.selisih)}
+          </span>
+        )}
+      </div>
+
+      {d.belumDiklasifikasi.baris.length > 0 && (
+        <PeringatanBelumDiatur
+          baris={d.belumDiklasifikasi.baris}
+          konteks="Aset, Liabilitas, maupun Ekuitas"
+        />
+      )}
+
+      <div className="grid gap-8 lg:grid-cols-2">
+        <div>
+          <Tabel>
+            <Judul>Aset</Judul>
+            <tr>
+              <td colSpan={3} className="pt-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Kas dan bank
+              </td>
+            </tr>
+            {d.kas.length ? (
+              d.kas.map((k) => <Garis key={k.rekeningId} nama={k.nama} nilai={k.saldo} />)
+            ) : (
+              <Kosong />
+            )}
+            <Total label="Total Kas dan Bank" nilai={d.totalKas} />
+
+            <tr>
+              <td colSpan={3} className="pt-4 text-xs font-medium text-gray-700 dark:text-gray-300">
+                Aset lainnya
+              </td>
+            </tr>
+            {d.asetLain.length ? <Daftar baris={d.asetLain} /> : <Kosong />}
+            <Total label="Total Aset Lainnya" nilai={d.totalAsetLain} />
+
+            <Total label="TOTAL ASET" nilai={d.totalAset} kuat />
+          </Tabel>
+        </div>
+
+        <div>
+          <Tabel>
+            <Judul>Liabilitas</Judul>
+            {d.liabilitas.length ? <Daftar baris={d.liabilitas} /> : <Kosong />}
+            <Total label="Total Liabilitas" nilai={d.totalLiabilitas} />
+
+            <Judul>Ekuitas</Judul>
+            <Garis nama="Modal awal (saldo awal rekening)" nilai={e.saldoAwalRekening} />
+            <Daftar baris={e.modal} />
+            <Garis nama="Laba (rugi) ditahan" nilai={e.labaDitahan} />
+            <Garis nama="Laba (rugi) tahun berjalan" nilai={e.labaBerjalan} />
+            <Total label="Total Ekuitas" nilai={e.total} />
+
+            {d.belumDiklasifikasi.baris.length > 0 && (
+              <Garis
+                nama="Belum diklasifikasi"
+                nilai={d.belumDiklasifikasi.total}
+                catatan="harus diatur di Kode Akun"
+              />
+            )}
+
+            <Total label="TOTAL LIABILITAS + EKUITAS" nilai={d.totalPasiva} kuat />
+          </Tabel>
+        </div>
+      </div>
+      <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+        Per {tanggalPanjang(d.tanggal)}. Kas dan bank diambil dari saldo awal rekening ditambah seluruh
+        mutasi sampai tanggal itu. Saldo awal rekening diperlakukan sebagai modal awal pembukuan.
+      </p>
+    </>
+  );
+}
+
+function ArusKas({ d }: { d: HasilLaporan["arusKas"] }) {
+  const seksi: { judul: string; baris: BarisLaporan[]; total: number }[] = [
+    { judul: "Arus kas dari aktivitas operasi", baris: d.operasi, total: d.total.operasi },
+    { judul: "Arus kas dari aktivitas investasi", baris: d.investasi, total: d.total.investasi },
+    { judul: "Arus kas dari aktivitas pendanaan", baris: d.pendanaan, total: d.total.pendanaan },
+    { judul: "Perpindahan dana (antar rekening dan kas tunai)", baris: d.pindahDana, total: d.total.pindahDana },
+  ];
+  return (
+    <>
+      {d.belumDiklasifikasi.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div>
+              <strong>
+                {d.belumDiklasifikasi.length} kode akun belum diatur aktivitas arus kasnya
+              </strong>{" "}
+              (net {formatRupiah(d.total.belumDiklasifikasi)}). Nominalnya tampil di bagian
+              &quot;Belum diklasifikasi&quot; di bawah.{" "}
+              <Link href="/master/kode-akun" className="font-medium underline">
+                Atur di Kode Akun
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Tabel>
+        <Garis nama="Saldo kas awal periode" nilai={d.kasAwal} />
+
+        {seksi.map((s) => (
+          <React.Fragment key={s.judul}>
+            <Judul>{s.judul}</Judul>
+            {s.baris.length ? <Daftar baris={s.baris} /> : <Kosong />}
+            <Total label="Arus kas bersih" nilai={s.total} />
+          </React.Fragment>
+        ))}
+
+        {d.belumDiklasifikasi.length > 0 && (
+          <>
+            <Judul>Belum diklasifikasi</Judul>
+            <Daftar baris={d.belumDiklasifikasi} />
+            <Total label="Arus kas bersih" nilai={d.total.belumDiklasifikasi} />
+          </>
+        )}
+
+        <tr>
+          <td colSpan={3} className="pt-4"></td>
+        </tr>
+        <Total label="Kenaikan (penurunan) kas bersih" nilai={d.kenaikan} kuat />
+        <Total label="Saldo kas akhir periode" nilai={d.kasAkhir} kuat />
+      </Tabel>
+      <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+        Metode langsung, tiap baris adalah uang masuk dikurangi uang keluar pada kode akun itu.
+        &quot;Perpindahan dana&quot; (transfer antar rekening, tarik tunai) bukan arus kas usaha. Saldo
+        kas akhir sama dengan total saldo rekening di Neraca.
+      </p>
+    </>
+  );
+}
+
+function PerubahanModal({ d }: { d: HasilLaporan["perubahanModal"] }) {
+  const cocok = Math.abs(d.akhir - d.ekuitasNeraca) < 0.005;
+  return (
+    <>
+      <Tabel>
+        <Judul>Modal awal periode</Judul>
+        <Garis nama="Saldo awal rekening" nilai={d.awal.saldoAwalRekening} />
+        <Garis nama="Modal dan prive periode sebelumnya" nilai={d.awal.modalDanPriveSebelumnya} />
+        <Garis nama="Laba (rugi) periode sebelumnya" nilai={d.awal.labaSebelumnya} />
+        <Total label="Modal awal" nilai={d.awal.total} />
+
+        <Judul>Perubahan selama periode</Judul>
+        {d.mutasiModal.length ? (
+          d.mutasiModal.map((b) => (
+            <Garis
+              key={b.kodeAkunId ?? "-"}
+              kode={b.kode}
+              nama={b.nama}
+              nilai={b.nilai}
+              catatan={b.nilai >= 0 ? "penambahan" : "pengurangan"}
+            />
+          ))
+        ) : (
+          <Kosong />
+        )}
+        <Garis nama="Laba (rugi) bersih periode" nilai={d.labaPeriode} />
+        <Total label="Total perubahan" nilai={d.totalMutasiModal + d.labaPeriode} />
+
+        <tr>
+          <td colSpan={3} className="pt-4"></td>
+        </tr>
+        <Total label="Modal akhir" nilai={d.akhir} kuat />
+      </Tabel>
+
+      <div className="mt-4">
+        {cocok ? (
+          <Badge warna="hijau">Sama dengan Total Ekuitas di Neraca ({formatRupiah(d.ekuitasNeraca)})</Badge>
+        ) : (
+          <Badge warna="merah">
+            Beda dengan Total Ekuitas di Neraca ({formatRupiah(d.ekuitasNeraca)})
+          </Badge>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function LaporanPage() {
+  const awal = hitungPreset("tahun-ini")!;
+  const [tab, setTab] = React.useState<Tab>("laba-rugi");
+  const [preset, setPreset] = React.useState<string | null>("tahun-ini");
+  const [dari, setDari] = React.useState(awal.dari);
+  const [sampai, setSampai] = React.useState(awal.sampai);
+  const [rekeningId, setRekeningId] = React.useState<string | null>(null);
+  const [data, setData] = React.useState<HasilLaporan | null>(null);
+  const [daftarRekening, setDaftarRekening] = React.useState<{ id: string; nama: string }[]>([]);
+  const [memuat, setMemuat] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/rekening");
+        const json = await res.json();
+        if (res.ok) setDaftarRekening(json.rekening);
+      } catch {
+        /* dropdown rekening tetap kosong, laporan semua rekening tetap jalan */
+      }
+    })();
+  }, []);
+
+  const muat = React.useCallback(async () => {
+    if (!dari || !sampai) return;
+    setMemuat(true);
+    setError(null);
+    try {
+      const q = new URLSearchParams({ dari, sampai });
+      if (rekeningId) q.set("rekeningId", rekeningId);
+      const res = await fetch(`/api/laporan?${q}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error);
+      setData(json);
+    } catch (err) {
+      const pesan = err instanceof Error ? err.message : "Gagal memuat laporan";
+      setError(pesan);
+      toast.error(pesan);
+    } finally {
+      setMemuat(false);
+    }
+  }, [dari, sampai, rekeningId]);
+
+  React.useEffect(() => {
+    muat();
+  }, [muat]);
+
+  function pilihPreset(v: string | null) {
+    setPreset(v);
+    const hasil = v ? hitungPreset(v) : null;
+    if (hasil) {
+      setDari(hasil.dari);
+      setSampai(hasil.sampai);
+    }
+  }
+
+  const adaTransaksi = (data?.jumlahTransaksiPeriode ?? 0) > 0;
+
+  return (
+    <>
+      <PageHeader
+        judul="Laporan"
+        deskripsi="Laba Rugi, Neraca, Arus Kas, dan Perubahan Modal, dihitung dari transaksi dan kode akun yang tersimpan."
+      />
+
+      <Card className="mb-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SearchableSelect
+            label="Periode"
+            value={preset}
+            onChange={pilihPreset}
+            options={PRESET}
+            placeholder="Kustom"
+          />
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Dari
+            </label>
+            <input
+              type="date"
+              value={dari}
+              onChange={(e) => {
+                setDari(e.target.value);
+                setPreset("kustom");
+              }}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Sampai
+            </label>
+            <input
+              type="date"
+              value={sampai}
+              onChange={(e) => {
+                setSampai(e.target.value);
+                setPreset("kustom");
+              }}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <SearchableSelect
+            label="Rekening"
+            value={rekeningId}
+            onChange={setRekeningId}
+            options={daftarRekening.map((r) => ({ value: r.id, label: r.nama }))}
+            placeholder="Semua rekening"
+            emptyText="Belum ada rekening"
+          />
+        </div>
+      </Card>
+
+      <div
+        role="tablist"
+        aria-label="Jenis laporan"
+        className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.key}
+            onClick={() => setTab(t.key)}
+            className={cn(
+              "whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+              tab === t.key
+                ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
+                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <Card>
+        {memuat && !data ? (
+          <Skeleton baris={10} />
+        ) : error && !data ? (
+          <EmptyState pesan={error} />
+        ) : data ? (
+          <div className={cn(memuat && "opacity-60 transition-opacity")}>
+            <div className="mb-3">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">
+                {TABS.find((t) => t.key === tab)?.label}
+              </h2>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                {tab === "neraca"
+                  ? `Per ${tanggalPanjang(data.periode.sampai)}`
+                  : `${tanggalPanjang(data.periode.dari)} sampai ${tanggalPanjang(data.periode.sampai)}`}
+                {" · "}
+                {rekeningId
+                  ? data.rekening.find((r) => r.id === rekeningId)?.nama
+                  : `${data.rekening.length} rekening`}
+              </p>
+            </div>
+
+            {tab === "neraca" || adaTransaksi ? (
+              <>
+                {tab === "laba-rugi" && <LabaRugi d={data.labaRugi} />}
+                {tab === "neraca" && <Neraca d={data.neraca} />}
+                {tab === "arus-kas" && <ArusKas d={data.arusKas} />}
+                {tab === "perubahan-modal" && <PerubahanModal d={data.perubahanModal} />}
+              </>
+            ) : (
+              <EmptyState pesan="Belum ada transaksi pada periode ini. Ubah periode atau rekening di atas." />
+            )}
+          </div>
+        ) : null}
+      </Card>
+    </>
+  );
+}

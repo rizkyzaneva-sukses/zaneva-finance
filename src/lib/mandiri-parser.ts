@@ -1,5 +1,6 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import type { MandiriMeta, MandiriParseResult, MandiriTransaction } from "@/lib/types";
+import type { BarisParsing, HasilParsing, MandiriMeta } from "@/lib/types";
+import { parseTanggalIndo, tanggalKeIso } from "@/lib/utils";
 
 interface Item {
   text: string;
@@ -184,12 +185,12 @@ function extractMeta(allItems: Item[]): MandiriMeta {
 export async function parseMandiriPdf(
   data: Uint8Array,
   password: string
-): Promise<MandiriParseResult> {
+): Promise<HasilParsing> {
   const pages = await extractItemsPerPage(data, password);
   const allItems = pages.flat();
   const meta = extractMeta(allItems);
 
-  const transactions: MandiriTransaction[] = [];
+  const baris: BarisParsing[] = [];
 
   for (const pageItems of pages) {
     if (pageItems.length === 0) continue;
@@ -240,31 +241,19 @@ export async function parseMandiriPdf(
       if (!d.dateStr || !d.nominalStr) continue; // baris yang gagal terbaca lengkap, jangan ditebak
       const amount = parseIdNumber(d.nominalStr);
       const saldo = parseIdNumber(d.saldoStr);
-      const tanggal = d.timeStr ? `${d.dateStr} ${d.timeStr}` : d.dateStr;
-      const transaksi = d.descParts.join(" ").replace(/\s+/g, " ").trim();
-      transactions.push({
-        tanggal,
-        transaksi,
-        debit: amount < 0 ? Math.abs(amount) : 0,
-        kredit: amount > 0 ? amount : 0,
-        saldo,
+      const tanggalTeks = d.timeStr ? `${d.dateStr} ${d.timeStr}` : d.dateStr;
+      const tanggal = parseTanggalIndo(d.dateStr);
+      baris.push({
+        tanggalTeks,
+        tanggalIso: tanggal ? tanggalKeIso(tanggal) : null,
+        keterangan: d.descParts.join(" ").replace(/\s+/g, " ").trim(),
+        uangMasuk: amount > 0 ? amount : 0,
+        uangKeluar: amount < 0 ? Math.abs(amount) : 0,
+        saldoBank: Number.isFinite(saldo) && d.saldoStr ? saldo : null,
+        yakin: tanggal !== null,
       });
     }
   }
 
-  let verifikasi: MandiriParseResult["verifikasi"] = null;
-  if (meta.saldoAwal !== undefined && meta.saldoAkhir !== undefined) {
-    const totalDebit = transactions.reduce((s, t) => s + t.debit, 0);
-    const totalKredit = transactions.reduce((s, t) => s + t.kredit, 0);
-    const hitung = meta.saldoAwal + totalKredit - totalDebit;
-    const selisih = Math.round((hitung - meta.saldoAkhir) * 100) / 100;
-    verifikasi = {
-      cocok: Math.abs(selisih) < 1,
-      selisih,
-      totalDebit,
-      totalKredit,
-    };
-  }
-
-  return { meta, transactions, verifikasi };
+  return { baris, meta };
 }

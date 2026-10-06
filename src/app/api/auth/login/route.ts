@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
-// Rate limit sederhana per IP (cukup untuk app single-instance, single-user).
+// Rate limit sederhana per IP (cukup untuk app single-instance).
 const percobaan = new Map<string, { n: number; sampai: number }>();
 const MAKS = 5;
 const JENDELA = 15 * 60 * 1000;
@@ -27,27 +29,37 @@ export async function POST(req: Request) {
     );
   }
 
-  const appPassword = process.env.APP_PASSWORD;
-  if (!appPassword) {
+  const body = await req.json().catch(() => ({}));
+  const username = typeof body.username === "string" ? body.username.trim() : "";
+  const password = typeof body.password === "string" ? body.password : "";
+
+  if (!username || !password) {
+    return NextResponse.json({ error: "Username dan password wajib diisi" }, { status: 400 });
+  }
+
+  let user;
+  try {
+    user = await prisma.user.findUnique({ where: { username } });
+  } catch (err) {
+    // Database tidak bisa dihubungi bukan salah user — jangan tampil seperti
+    // password salah, karena itu bikin orang mencoba-coba password terus.
+    console.error("[login] gagal akses database", err);
     return NextResponse.json(
-      { error: "APP_PASSWORD belum diset di server" },
+      { error: "Server tidak bisa menghubungi database. Hubungi admin." },
       { status: 503 }
     );
   }
 
-  const { password } = await req.json().catch(() => ({ password: undefined }));
-  if (!password || typeof password !== "string") {
-    return NextResponse.json({ error: "Password wajib diisi" }, { status: 400 });
-  }
-
-  if (password !== appPassword) {
-    return NextResponse.json({ error: "Password salah" }, { status: 401 });
-  }
+  // Pesan error sengaja sama untuk user tidak ada / password salah / akun nonaktif,
+  // supaya tidak membocorkan username mana yang terdaftar.
+  const gagal = NextResponse.json({ error: "Username atau password salah" }, { status: 401 });
+  if (!user || !user.aktif) return gagal;
+  if (!(await bcrypt.compare(password, user.passwordHash))) return gagal;
 
   const session = await getSession();
-  session.isLoggedIn = true;
+  session.userId = user.id;
   await session.save();
 
   percobaan.delete(ip);
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, nama: user.nama, role: user.role });
 }

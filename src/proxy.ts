@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/health"];
 
+/**
+ * Hanya gerbang kasar: ada cookie session atau tidak. Verifikasi user & role
+ * yang sebenarnya dilakukan di tiap route handler lewat `wajibLogin()`, karena
+ * middleware tidak bisa akses database.
+ */
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -9,7 +14,7 @@ export function proxy(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const cookieName = process.env.SESSION_COOKIE_NAME || "zaneva_mutasi_session";
+  const cookieName = process.env.SESSION_COOKIE_NAME || "zaneva_finance_session";
   const hasSession = req.cookies.has(cookieName);
 
   if (!hasSession) {

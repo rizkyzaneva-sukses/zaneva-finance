@@ -14,3 +14,12 @@ samples/
 *.jpg
 *.jpeg
 *.png
+
+# Prisma client hasil generate
+src/generated
+
+# Berisi password DB lokal — jangan ikut ke-commit
+scripts/setup-db.sql
+
+# Artefak build TypeScript
+*.tsbuildinfo
