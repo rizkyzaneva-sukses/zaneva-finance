@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, INPUT_CLASS } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { CashFlowChart, type TitikBulan } from "@/components/cash-flow-chart";
-import { formatRupiah, formatTanggal } from "@/lib/utils";
+import { cn, formatRupiah, formatTanggal } from "@/lib/utils";
 
 interface KartuRekening {
   id: string;
@@ -25,7 +25,7 @@ interface BarisBreakdown {
   jumlahTransaksi: number;
   masuk: number;
   keluar: number;
-  total: number;
+  net: number;
 }
 
 interface DataDashboard {
@@ -102,7 +102,8 @@ export default function DashboardPage() {
     [data]
   );
 
-  const totalBreakdown = data?.breakdown.reduce((s, b) => s + b.total, 0) ?? 0;
+  // Skala bar dari net terbesar, bukan dari jumlah semua — net bisa positif & negatif
+  const netTerbesar = Math.max(1, ...(data?.breakdown ?? []).map((b) => Math.abs(b.net)));
 
   return (
     <>
@@ -241,7 +242,8 @@ export default function DashboardPage() {
               Breakdown per kode akun
             </h2>
             <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
-              Diurutkan dari nominal terbesar.
+              Kolom Net adalah uang masuk dikurangi uang keluar, diurutkan dari yang terbesar
+              pengaruhnya. Akun dua arah seperti transfer antar rekening akan mendekati nol.
             </p>
             {data.breakdown.length === 0 ? (
               <EmptyState pesan="Belum ada transaksi pada rentang ini." />
@@ -254,7 +256,7 @@ export default function DashboardPage() {
                       <th className="px-2 py-2 font-medium">Nama</th>
                       <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Masuk</th>
                       <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Keluar</th>
-                      <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Total</th>
+                      <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Net</th>
                       <th className="w-32 px-2 py-2"></th>
                       <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Transaksi</th>
                     </tr>
@@ -275,15 +277,22 @@ export default function DashboardPage() {
                         <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
                           {b.keluar ? formatRupiah(b.keluar) : "—"}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-50">
-                          {formatRupiah(b.total)}
+                        <td
+                          className={cn(
+                            "whitespace-nowrap px-2 py-2 text-right font-medium tabular-nums",
+                            b.net < 0
+                              ? "text-red-700 dark:text-red-400"
+                              : "text-gray-900 dark:text-gray-50"
+                          )}
+                        >
+                          {b.net < 0 ? `(${formatRupiah(-b.net)})` : formatRupiah(b.net)}
                         </td>
                         <td className="px-2 py-2">
                           <div
                             className="h-2 rounded-sm"
                             style={{
-                              width: `${totalBreakdown ? Math.max(2, (b.total / totalBreakdown) * 100) : 0}%`,
-                              background: b.masuk >= b.keluar ? "var(--chart-masuk)" : "var(--chart-keluar)",
+                              width: `${Math.max(2, (Math.abs(b.net) / netTerbesar) * 100)}%`,
+                              background: b.net >= 0 ? "var(--chart-masuk)" : "var(--chart-keluar)",
                             }}
                           />
                         </td>

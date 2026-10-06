@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 import { toast } from "sonner";
 import {
   Badge,
@@ -215,6 +215,45 @@ function PeringatanBelumDiatur({
   );
 }
 
+/**
+ * Pemeriksaan silang kas: laporan vs saldo berjalan tersimpan. Ini satu-satunya
+ * angka di halaman ini yang bisa berubah jadi merah kalau ada data rusak.
+ */
+function Pemeriksaan({ p }: { p: HasilLaporan["pemeriksaan"] }) {
+  return (
+    <div className="mb-4 space-y-2">
+      {p.cocok ? (
+        <div className="flex items-start gap-2 rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 text-sm text-green-900 dark:border-green-800 dark:bg-green-900/30 dark:text-green-200">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Kas di laporan cocok dengan saldo berjalan tiap rekening ({formatRupiah(p.kasLaporan)}).
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <strong>Kas tidak cocok, selisih {formatRupiah(p.selisih)}.</strong> Laporan menghitung{" "}
+            {formatRupiah(p.kasLaporan)}, saldo berjalan tersimpan {formatRupiah(p.kasTersimpan)}. Ada
+            data yang rusak — jangan dipakai sebelum diperiksa.
+          </span>
+        </div>
+      )}
+
+      {p.satuRekening && (
+        <div className="flex items-start gap-2 rounded-xl border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-700 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-gray-300">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Hanya satu rekening yang dipilih. Transfer antar rekening cuma terlihat sebelah, jadi
+            akun seperti Pengalihan Dana tidak akan nol dan angka Laba Rugi belum menggambarkan
+            seluruh usaha. Pilih &quot;Semua rekening&quot; untuk laporan yang utuh.
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LabaRugi({ d }: { d: HasilLaporan["labaRugi"] }) {
   return (
     <>
@@ -249,20 +288,6 @@ function Neraca({ d }: { d: HasilLaporan["neraca"] }) {
   const e = d.ekuitas;
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        {d.seimbang ? (
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-green-100 px-3 py-1.5 text-sm font-medium text-green-800 dark:bg-green-900/40 dark:text-green-300">
-            <CheckCircle2 className="h-4 w-4" />
-            Neraca seimbang
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-sm font-medium text-red-800 dark:bg-red-900/40 dark:text-red-300">
-            <AlertTriangle className="h-4 w-4" />
-            Tidak seimbang, selisih {formatRupiah(d.selisih)}
-          </span>
-        )}
-      </div>
-
       {d.belumDiklasifikasi.baris.length > 0 && (
         <PeringatanBelumDiatur
           baris={d.belumDiklasifikasi.baris}
@@ -326,6 +351,8 @@ function Neraca({ d }: { d: HasilLaporan["neraca"] }) {
       <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
         Per {tanggalPanjang(d.tanggal)}. Kas dan bank diambil dari saldo awal rekening ditambah seluruh
         mutasi sampai tanggal itu. Saldo awal rekening diperlakukan sebagai modal awal pembukuan.
+        Kedua sisi neraca ini selalu sama besar karena setiap transaksi dicatat ke dua sisi sekaligus —
+        jadi &quot;seimbang&quot; bukan bukti angkanya benar. Yang memeriksa itu kotak di atas halaman.
       </p>
     </>
   );
@@ -393,7 +420,6 @@ function ArusKas({ d }: { d: HasilLaporan["arusKas"] }) {
 }
 
 function PerubahanModal({ d }: { d: HasilLaporan["perubahanModal"] }) {
-  const cocok = Math.abs(d.akhir - d.ekuitasNeraca) < 0.005;
   return (
     <>
       <Tabel>
@@ -426,15 +452,10 @@ function PerubahanModal({ d }: { d: HasilLaporan["perubahanModal"] }) {
         <Total label="Modal akhir" nilai={d.akhir} kuat />
       </Tabel>
 
-      <div className="mt-4">
-        {cocok ? (
-          <Badge warna="hijau">Sama dengan Total Ekuitas di Neraca ({formatRupiah(d.ekuitasNeraca)})</Badge>
-        ) : (
-          <Badge warna="merah">
-            Beda dengan Total Ekuitas di Neraca ({formatRupiah(d.ekuitasNeraca)})
-          </Badge>
-        )}
-      </div>
+      <p className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+        Modal akhir sama dengan Total Ekuitas di Neraca ({formatRupiah(d.ekuitasNeraca)}). Keduanya
+        dihitung dari komponen yang sama, jadi memang selalu sama — ini keterangan, bukan pemeriksaan.
+      </p>
     </>
   );
 }
@@ -598,6 +619,8 @@ export default function LaporanPage() {
                   : `${data.rekening.length} rekening`}
               </p>
             </div>
+
+            <Pemeriksaan p={data.pemeriksaan} />
 
             {tab === "neraca" || adaTransaksi ? (
               <>

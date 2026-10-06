@@ -132,10 +132,15 @@ export async function GET(req: Request) {
           jumlahTransaksi: v.jumlah,
           masuk: v.masuk,
           keluar: v.keluar,
-          total: v.masuk + v.keluar,
+          /**
+           * Net, bukan masuk + keluar. Menjumlah kedua arah menggandakan akun
+           * dua arah: Pengalihan Dana yang masuk 40jt dan keluar 40jt akan
+           * terlihat "80jt", padahal yang berpindah 40jt dan efeknya nol.
+           */
+          net: Math.round((v.masuk - v.keluar) * 100) / 100,
         };
       })
-      .sort((a, b) => b.total - a.total);
+      .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
 
     return NextResponse.json({
       kartuRekening,

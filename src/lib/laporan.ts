@@ -14,6 +14,13 @@ import type { AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
  * "Belum diklasifikasi" menampung transaksi tanpa kode, atau yang kodenya belum
  * diatur masuk laporan apa. Neraca tetap seimbang, dan angka itu sengaja
  * ditampilkan mencolok supaya tidak ada uang yang hilang diam-diam.
+ *
+ * PENTING — identitas di atas benar secara konstruksi: tiap entri selalu masuk
+ * ke kedua sisi neraca sekaligus, jadi selisihnya SELALU nol apa pun isi datanya.
+ * Karena itu "neraca seimbang" bukan bukti laporan benar, dan tidak dipakai
+ * sebagai pemeriksaan. Yang dipakai adalah `pemeriksaan` di bawah: kas versi
+ * laporan dibandingkan dengan kolom saldo berjalan yang ditulis `hitungUlangSaldo` —
+ * dua jalur hitung yang berbeda, jadi selisihnya berarti ada yang rusak.
  */
 
 type Sen = number;
@@ -93,6 +100,9 @@ function agregatPerKode(entri: Entri[]): Agregat[] {
 const jumlah = (list: { nilai: number }[]) =>
   Math.round(list.reduce((s, b) => s + b.nilai * 100, 0)) / 100;
 
+/** Baris bernilai nol tidak dicetak di laporan keuangan — hanya menambah kebisingan. */
+const tanpaNol = <T extends { nilai: number }>(list: T[]) => list.filter((b) => b.nilai !== 0);
+
 function baris(a: Agregat, nilaiSen: Sen): BarisLaporan {
   return {
     kodeAkunId: a.k?.id ?? null,
@@ -103,9 +113,36 @@ function baris(a: Agregat, nilaiSen: Sen): BarisLaporan {
 }
 
 function luarLaporan(entri: Entri[]): BarisLuarLaporan[] {
-  return agregatPerKode(entri.filter((e) => kategori(e.kode) === "LUAR"))
-    .map((a) => ({ ...baris(a, a.net), alasan: alasanLuar(a.k), jumlahTransaksi: a.n }))
-    .sort(urutKode);
+  return tanpaNol(
+    agregatPerKode(entri.filter((e) => kategori(e.kode) === "LUAR")).map((a) => ({
+      ...baris(a, a.net),
+      alasan: alasanLuar(a.k),
+      jumlahTransaksi: a.n,
+    }))
+  ).sort(urutKode);
+}
+
+/**
+ * Saldo kas per rekening menurut kolom `saldo` yang ditulis `hitungUlangSaldo`,
+ * yaitu saldo transaksi terakhir pada atau sebelum `sampai`. Ini jalur hitung
+ * yang berbeda dari laporan, jadi cocok dipakai sebagai pemeriksaan silang.
+ */
+async function kasTersimpan(sampai: string, rekeningId: string | null): Promise<Sen> {
+  const rekening = await prisma.rekening.findMany({
+    where: rekeningId ? { id: rekeningId } : undefined,
+    select: { id: true, saldoAwal: true },
+  });
+
+  let total: Sen = 0;
+  for (const r of rekening) {
+    const terakhir = await prisma.transaksi.findFirst({
+      where: { rekeningId: r.id, tanggal: { lte: new Date(`${sampai}T00:00:00.000Z`) } },
+      orderBy: [{ tanggal: "desc" }, { urutanInput: "desc" }, { createdAt: "desc" }],
+      select: { saldo: true },
+    });
+    total += terakhir ? sen(terakhir.saldo) : sen(r.saldoAwal);
+  }
+  return total;
 }
 
 async function ambilEntri(sampai: string, rekeningId: string | null) {
@@ -164,13 +201,14 @@ export interface OpsiLaporan {
 }
 
 export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
-  const [entri, rekeningList] = await Promise.all([
+  const [entri, rekeningList, kasTersimpanSen] = await Promise.all([
     ambilEntri(sampai, rekeningId),
     prisma.rekening.findMany({
       where: rekeningId ? { id: rekeningId } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
       select: { id: true, nama: true, saldoAwal: true },
     }),
+    kasTersimpan(sampai, rekeningId),
   ]);
 
   const saldoAwalSen = rekeningList.reduce((s, r) => s + sen(r.saldoAwal), 0);
@@ -191,7 +229,9 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     else if (a.k?.kelompok === "PEMBELIAN") pembelian.push(baris(a, -a.net));
     else beban.push(baris(a, -a.net));
   }
-  [pendapatan, pembelian, beban].forEach((l) => l.sort(urutKode));
+  const lrPendapatan = tanpaNol(pendapatan).sort(urutKode);
+  const lrPembelian = tanpaNol(pembelian).sort(urutKode);
+  const lrBeban = tanpaNol(beban).sort(urutKode);
 
   const totalPendapatan = jumlah(pendapatan);
   const totalPembelian = jumlah(pembelian);
@@ -222,7 +262,9 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     else if (-a.net >= 0) asetLain.push(baris(a, -a.net));
     else liabilitas.push(baris(a, a.net));
   }
-  [asetLain, liabilitas, modal].forEach((l) => l.sort(urutKode));
+  const nAsetLain = tanpaNol(asetLain).sort(urutKode);
+  const nLiabilitas = tanpaNol(liabilitas).sort(urutKode);
+  const nModal = tanpaNol(modal).sort(urutKode);
 
   const labaKumulatifSen = labaDari(entri);
   const labaBerjalanSen = labaDari(entri.filter((e) => e.tanggal >= tahunBerjalanMulai));
@@ -256,7 +298,9 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     const seksi = a.k?.aktivitasKas ?? "BELUM";
     seksiKas[seksi].push(baris(a, a.net));
   }
-  Object.values(seksiKas).forEach((l) => l.sort(urutKode));
+  for (const k of Object.keys(seksiKas) as (keyof typeof seksiKas)[]) {
+    seksiKas[k] = tanpaNol(seksiKas[k]).sort(urutKode);
+  }
 
   const kasAwalSen = saldoAwalSen + sebelumPeriode.reduce((s, e) => s + e.net, 0);
   const kenaikanSen = dalamPeriode.reduce((s, e) => s + e.net, 0);
@@ -268,24 +312,40 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
   const labaSebelumSen = labaDari(sebelumPeriode);
   const modalAwalSen = saldoAwalSen + modalSebelumSen + labaSebelumSen;
 
-  const mutasiModal: BarisLaporan[] = agregatPerKode(
-    dalamPeriode.filter((e) => kategori(e.kode) === "NERACA" && e.kode?.kelompok === "MODAL")
-  )
-    .map((a) => baris(a, a.net))
-    .sort(urutKode);
+  const mutasiModal: BarisLaporan[] = tanpaNol(
+    agregatPerKode(
+      dalamPeriode.filter((e) => kategori(e.kode) === "NERACA" && e.kode?.kelompok === "MODAL")
+    ).map((a) => baris(a, a.net))
+  ).sort(urutKode);
   const totalMutasiModalSen = Math.round(jumlah(mutasiModal) * 100);
   const labaPeriodeSen = labaDari(dalamPeriode);
   const modalAkhirSen = modalAwalSen + totalMutasiModalSen + labaPeriodeSen;
+
+  const selisihKas = Math.round(totalKas * 100) - kasTersimpanSen;
 
   return {
     periode: { dari, sampai },
     rekening: rekeningList.map((r) => ({ id: r.id, nama: r.nama })),
     jumlahTransaksiPeriode: dalamPeriode.length,
 
+    /**
+     * Satu-satunya pemeriksaan yang berarti di laporan ini: kas versi laporan
+     * (saldo awal + seluruh mutasi) dibandingkan dengan kolom saldo berjalan
+     * yang ditulis saat transaksi disimpan. Selisih berarti ada data rusak.
+     */
+    pemeriksaan: {
+      kasLaporan: totalKas,
+      kasTersimpan: rp(kasTersimpanSen),
+      selisih: rp(selisihKas),
+      cocok: selisihKas === 0,
+      /** Satu rekening dipilih: transfer antar rekening cuma terlihat sebelah */
+      satuRekening: rekeningId !== null,
+    },
+
     labaRugi: {
-      pendapatan,
-      pembelian,
-      beban,
+      pendapatan: lrPendapatan,
+      pembelian: lrPembelian,
+      beban: lrBeban,
       totalPendapatan,
       totalPembelian,
       labaKotor,
@@ -298,14 +358,14 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
       tanggal: sampai,
       kas,
       totalKas,
-      asetLain,
+      asetLain: nAsetLain,
       totalAsetLain,
       totalAset,
-      liabilitas,
+      liabilitas: nLiabilitas,
       totalLiabilitas,
       ekuitas: {
         saldoAwalRekening: rp(saldoAwalSen),
-        modal,
+        modal: nModal,
         labaDitahan: rp(labaDitahanSen),
         labaBerjalan: rp(labaBerjalanSen),
         total: rp(totalEkuitasSen),

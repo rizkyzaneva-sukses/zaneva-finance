@@ -176,6 +176,11 @@ Halaman **Laporan** dengan empat tab, difilter periode (preset atau kustom) dan 
 
 Aturan penting:
 - Identitas `Kas + Aset lain = Saldo awal + Liabilitas + Modal + Laba + Belum diklasifikasi` selalu terjaga. **Belum diklasifikasi** menampung transaksi tanpa kode atau yang kodenya belum diatur masuk laporan (atau diatur `TIDAK_ADA`); nilainya ditampilkan mencolok dengan tautan untuk memperbaiki, sehingga Neraca tidak pernah "dipaksa" seimbang secara diam-diam.
+- **Neraca seimbang bukan pemeriksaan.** Identitas di atas benar secara konstruksi — tiap entri selalu masuk ke dua sisi sekaligus, jadi selisihnya selalu nol apa pun isi datanya. Diuji dengan sengaja merusak konfigurasi kode akun: selisih tetap nol. Karena itu badge "seimbang" dihapus; yang dipakai adalah pemeriksaan silang kas (lihat bawah). Hal yang sama berlaku untuk "modal akhir = total ekuitas" di Perubahan Modal.
+- **Pemeriksaan silang kas (satu-satunya yang berarti):** kas versi laporan (saldo awal + Σ mutasi) dibandingkan dengan kolom `Transaksi.saldo` yang ditulis `hitungUlangSaldo` — dua jalur hitung berbeda. Diuji dengan merusak satu nilai saldo: pemeriksaan ini menangkapnya, sedangkan badge neraca tidak.
+- **Baris bernilai nol tidak dicetak**, mengikuti kebiasaan laporan keuangan.
+- **Filter satu rekening memberi peringatan**, karena transfer antar rekening hanya terlihat sebelah sehingga akun seperti Pengalihan Dana tidak akan nol.
+- **Dashboard menampilkan Net (masuk − keluar), bukan masuk + keluar.** Menjumlah kedua arah menggandakan akun dua arah: Pengalihan Dana dengan masuk 40 jt dan keluar 40 jt sempat tampil "80 jt", padahal yang berpindah 40 jt dan efeknya nol.
 - Kode kelompok selain Harta/Utang/Pinjaman/Modal yang ditandai Neraca: saldo debit jadi aset, saldo kredit jadi liabilitas.
 - `aktivitasKas` pada Kode Akun: `OPERASI | INVESTASI | PENDANAAN | PINDAH_DANA`, nullable (belum diatur), nilai awal dari seed dan bisa diubah di UI.
 
