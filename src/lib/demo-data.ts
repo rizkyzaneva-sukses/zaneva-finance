@@ -48,6 +48,8 @@ interface BrandCfg {
   gaji: number;
   sewa: number;
   iklan: { kode: string; label: string; nilai: number[] };
+  /** Setoran rutin brand ke rekening operasional pusat — dijaga di bawah surplus bulanan. */
+  transfer: number;
   produk: ProdukCfg[];
 }
 
@@ -59,11 +61,12 @@ const BRANDS: BrandCfg[] = [
     bank: Bank.BCA,
     rekNama: `${MARK} BCA Zaneva Muslimah`,
     saldoAwal: 40_000_000,
-    penjualan: { kode: "402", label: "PAYOUT SHOPEE", nilai: [12_000_000, 15_000_000, 18_000_000] },
-    pembelian: { kode: "501", label: "TRSF VENDOR ARIF", nilai: [6_000_000, 7_000_000] },
-    gaji: 6_000_000,
+    penjualan: { kode: "402", label: "PAYOUT SHOPEE", nilai: [45_000_000, 52_000_000, 61_000_000] },
+    pembelian: { kode: "501", label: "TRSF VENDOR ARIF", nilai: [12_000_000, 14_000_000] },
+    gaji: 9_000_000,
     sewa: 2_500_000,
-    iklan: { kode: "60902", label: "TOP UP IKLAN SHOPEE", nilai: [1_500_000, 1_800_000] },
+    iklan: { kode: "60902", label: "TOP UP IKLAN SHOPEE", nilai: [3_000_000, 3_500_000] },
+    transfer: 12_000_000,
     produk: [
       { nama: "Gamis Syar'i Adrea", hpp: 165_000, stok: [120, 96, 78] },
       { nama: "Hijab Instant Voal", hpp: 55_000, stok: [240, 210, 185] },
@@ -80,11 +83,12 @@ const BRANDS: BrandCfg[] = [
     bank: Bank.MANDIRI,
     rekNama: `${MARK} Mandiri Zaneva Kids`,
     saldoAwal: 18_000_000,
-    penjualan: { kode: "407", label: "PAYOUT TIKTOK SHOP", nilai: [8_000_000, 9_500_000, 11_000_000] },
-    pembelian: { kode: "502", label: "TRSF VENDOR FAHMI", nilai: [4_000_000, 4_500_000] },
-    gaji: 4_500_000,
+    penjualan: { kode: "407", label: "PAYOUT TIKTOK SHOP", nilai: [26_000_000, 30_000_000, 35_000_000] },
+    pembelian: { kode: "502", label: "TRSF VENDOR FAHMI", nilai: [8_000_000, 9_000_000] },
+    gaji: 5_000_000,
     sewa: 2_000_000,
-    iklan: { kode: "60904", label: "IKLAN TIKTOK", nilai: [1_000_000, 1_200_000] },
+    iklan: { kode: "60904", label: "IKLAN TIKTOK", nilai: [1_500_000, 1_800_000] },
+    transfer: 6_000_000,
     produk: [
       { nama: "Setelan Anak Laki", hpp: 85_000, stok: [90, 72, 60] },
       { nama: "Dress Anak Perempuan", hpp: 95_000, stok: [80, 64, 50] },
@@ -101,11 +105,12 @@ const BRANDS: BrandCfg[] = [
     bank: Bank.BRI,
     rekNama: `${MARK} BRI Zaneva Hijab`,
     saldoAwal: 12_000_000,
-    penjualan: { kode: "406", label: "PAYOUT TOKOPEDIA", nilai: [5_000_000, 6_000_000, 7_000_000] },
-    pembelian: { kode: "503", label: "TRSF VENDOR DIMAS", nilai: [3_000_000, 3_500_000] },
-    gaji: 3_500_000,
+    penjualan: { kode: "406", label: "PAYOUT TOKOPEDIA", nilai: [22_000_000, 26_000_000, 30_000_000] },
+    pembelian: { kode: "503", label: "TRSF VENDOR DIMAS", nilai: [6_000_000, 7_000_000] },
+    gaji: 4_000_000,
     sewa: 1_800_000,
-    iklan: { kode: "60903", label: "IKLAN LAZADA", nilai: [800_000, 1_000_000] },
+    iklan: { kode: "60903", label: "IKLAN LAZADA", nilai: [1_200_000, 1_500_000] },
+    transfer: 5_000_000,
     produk: [
       { nama: "Pashmina Ceruty", hpp: 60_000, stok: [200, 172, 150] },
       { nama: "Hijab Bergo Instan", hpp: 42_000, stok: [260, 230, 198] },
@@ -311,8 +316,10 @@ export async function isiDummy() {
 
       const tglMulai = new Date(`${iso(bulan[0].yy, bulan[0].mm, 1)}T00:00:00.000Z`);
 
-      // ── Per brand: brand, rekening, produk, transaksi, SO ───
+      // ── Per brand: brand, rekening, produk, transaksi ───
       const semuaRekeningId: string[] = [pusat.id, kas.id];
+      // Produk tiap brand dikumpulkan untuk stok opname GABUNGAN (satu SO memuat semua brand).
+      const produkSemuaBrand: { brandId: string; cfg: BrandCfg; produk: { id: string; sku: string; hpp: number }[] }[] = [];
 
       for (const cfg of BRANDS) {
         const brand = await tx.brand.create({ data: { nama: cfg.nama, kunci: cfg.kunci } });
@@ -385,7 +392,7 @@ export async function isiDummy() {
           // Adm bank + pajak bunga
           push(iso(b.yy, b.mm, 28), "611", "BIAYA ADM BANK", 0, 15_000);
           // Pengisian kas dari brand ke pusat (pindah dana)
-          push(iso(b.yy, b.mm, 26), "10101", "TRSF KE OPERASIONAL PUSAT", 0, 15_000_000);
+          push(iso(b.yy, b.mm, 26), "10101", "TRSF KE OPERASIONAL PUSAT", 0, cfg.transfer);
           // Beberapa baris menunggu ACC pada bulan terakhir (demo alur ACC)
           if (idx === 2) {
             push(iso(b.yy, b.mm, 20), "621", "BEBAN OPERASIONAL (INPUT STAFF)", 0, 350_000, { acc: StatusAcc.MENUNGGU });
@@ -425,37 +432,8 @@ export async function isiDummy() {
 
         await hitungUlangSaldo(tx, rek.id);
 
-        // Stok opname: AWAL + 2x BULANAN
-        const soDef = [
-          { jenis: JenisSo.AWAL, posisi: iso(bulan[0].yy, bulan[0].mm, 1), idx: 0 },
-          { jenis: JenisSo.BULANAN, posisi: iso(bulan[1].yy, bulan[1].mm, 1), idx: 1 },
-          { jenis: JenisSo.BULANAN, posisi: iso(bulan[2].yy, bulan[2].mm, 1), idx: 2 },
-        ];
-        for (const s of soDef) {
-          const items = dibuatProduk.map((p, i) => {
-            const stok = cfg.produk[i].stok[s.idx];
-            const nilai = stok * p.hpp;
-            return { produkId: p.id, sku: p.sku, brandId: brand.id, stok, hpp: new Prisma.Decimal(p.hpp), nilai: new Prisma.Decimal(nilai) };
-          });
-          const totalStok = items.reduce((a, x) => a + x.stok, 0);
-          const totalNilai = items.reduce((a, x) => a + Number(x.nilai), 0);
-          const so = await tx.stokOpname.create({
-            data: {
-              jenis: s.jenis,
-              tanggalInput: new Date(`${iso(bulan[Math.min(s.idx + 1, 2)].yy, bulan[Math.min(s.idx + 1, 2)].mm, 2)}T00:00:00.000Z`),
-              posisiPada: new Date(`${s.posisi}T00:00:00.000Z`),
-              catatan: `${MARK} Stok opname ${s.jenis} ${cfg.nama}`,
-              jumlahSku: items.length,
-              totalStok,
-              totalNilai: new Prisma.Decimal(totalNilai),
-              statusAcc: StatusAcc.DISETUJUI,
-              diunggahOlehId: owner.id,
-            },
-          });
-          await tx.stokOpnameItem.createMany({
-            data: items.map((x) => ({ ...x, stokOpnameId: so.id })),
-          });
-        }
+        // Produk brand ini dicatat untuk SO gabungan nanti
+        produkSemuaBrand.push({ brandId: brand.id, cfg, produk: dibuatProduk });
 
         // User portal demo yang dibatasi ke brand ini
         const staff = await tx.user.create({
@@ -493,8 +471,9 @@ export async function isiDummy() {
         });
       };
       pushP(pusat.id, iso(bulan[0].yy, bulan[0].mm, 2), "300", "SETORAN MODAL PUSAT", 10_000_000, 0);
+      const totalTransfer = BRANDS.reduce((a, b) => a + b.transfer, 0);
       bulan.forEach((b) => {
-        pushP(pusat.id, iso(b.yy, b.mm, 26), "10101", "TERIMA TRANSFER DARI BRAND", 15_000_000, 0);
+        pushP(pusat.id, iso(b.yy, b.mm, 26), "10101", "TERIMA TRANSFER DARI BRAND", totalTransfer, 0);
         pushP(pusat.id, iso(b.yy, b.mm, 25), "601", "GAJI TIM ADMIN PUSAT", 0, 8_000_000);
         pushP(pusat.id, iso(b.yy, b.mm, 1), "604", "SEWA KANTOR PUSAT", 0, 3_000_000);
         pushP(pusat.id, iso(b.yy, b.mm, 8), "606", "TAGIHAN LISTRIK & INTERNET KANTOR", 0, 1_500_000);
@@ -558,6 +537,58 @@ export async function isiDummy() {
             },
           });
         }
+      }
+
+      // ── Stok opname GABUNGAN (satu SO memuat SEMUA brand) ───
+      // Schema: StokOpname tanpa brandId → satu SO mencakup seluruh produk semua brand.
+      const akhirBulan = (yy: number, mm: number) => iso(yy, mm, new Date(Date.UTC(yy, mm, 0)).getUTCDate());
+      const soDefs: { jenis: JenisSo; posisiPada: string; tanggalInput: string; idxStok: number }[] = [
+        // Persediaan awal pembukuan (posisi 1 hari sebelum bulan pertama data).
+        { jenis: JenisSo.AWAL, posisiPada: iso(bulan[0].yy, bulan[0].mm, 1), tanggalInput: iso(bulan[0].yy, bulan[0].mm, 2), idxStok: 0 },
+      ];
+      for (let i = 1; i < bulan.length; i++) {
+        const b = bulan[i];
+        soDefs.push({
+          jenis: JenisSo.BULANAN,
+          posisiPada: akhirBulan(b.yy, b.mm),
+          tanggalInput: iso(b.yy, b.mm, 28),
+          idxStok: i,
+        });
+      }
+      for (const def of soDefs) {
+        const items = produkSemuaBrand.flatMap((pb) =>
+          pb.produk.map((p, pi) => {
+            const stok = pb.cfg.produk[pi].stok[def.idxStok] ?? 0;
+            return {
+              produkId: p.id,
+              sku: p.sku,
+              brandId: pb.brandId,
+              stok,
+              hpp: new Prisma.Decimal(p.hpp),
+              nilai: new Prisma.Decimal(stok * p.hpp),
+            };
+          })
+        );
+        const totalStok = items.reduce((a, it) => a + it.stok, 0);
+        const totalNilai = items.reduce((a, it) => a + Number(it.nilai), 0);
+        const so = await tx.stokOpname.create({
+          data: {
+            jenis: def.jenis,
+            tanggalInput: new Date(`${def.tanggalInput}T00:00:00.000Z`),
+            posisiPada: new Date(`${def.posisiPada}T00:00:00.000Z`),
+            catatan: `${MARK} Stok opname ${def.jenis} — semua brand`,
+            jumlahSku: items.length,
+            totalStok,
+            totalNilai: new Prisma.Decimal(totalNilai),
+            statusAcc: StatusAcc.DISETUJUI,
+            accOlehId: owner.id,
+            accPada: new Date(),
+            diunggahOlehId: owner.id,
+          },
+        });
+        await tx.stokOpnameItem.createMany({
+          data: items.map((it) => ({ stokOpnameId: so.id, ...it })),
+        });
       }
 
       // ── Log aktivitas contoh ────────────────────────────────
