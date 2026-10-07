@@ -17,6 +17,7 @@ import {
   FolderOpen,
   Package,
   Tags,
+  Database,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ const MENU: MenuItem[] = [
   { href: "/master/brand", label: "Brand", icon: Tags, butuh: ["OWNER", "ADMIN"], semuaBrand: true, grup: "master" },
   { href: "/master/kode-akun", label: "Kode Akun", icon: ListTree, butuh: ["OWNER", "ADMIN"], semuaBrand: true, grup: "master" },
   { href: "/pengguna", label: "Pengguna", icon: Users, butuh: ["OWNER"], grup: "administrasi" },
+  { href: "/data-demo", label: "Data & Demo", icon: Database, butuh: ["OWNER"], grup: "administrasi" },
   { href: "/log", label: "Log Aktivitas", icon: ScrollText, butuh: ["OWNER"], grup: "administrasi" },
   { href: "/panduan", label: "Panduan", icon: CircleHelp },
 ];
