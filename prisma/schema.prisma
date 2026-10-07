@@ -98,6 +98,7 @@ model User {
   auditLogs       AuditLog[]
   periodeDisahkan PeriodeLaba[]
   distribusiAcc   DistribusiAlokasi[]
+  dokumenDiunggah DokumenMutasi[]
 }
 
 model Rekening {
@@ -116,6 +117,38 @@ model Rekening {
   updatedAt DateTime @updatedAt
 
   transaksi Transaksi[]
+  dokumen   DokumenMutasi[]
+}
+
+/// Arsip dokumen mutasi bank (screenshot/PDF) per rekening. FILE-nya dihapus
+/// otomatis setelah masa simpan (default 3 hari, karena mutasi bulanan bisa
+/// diunduh ulang dari bank), tapi CATATAN-nya tetap selamanya sehingga
+/// dokumentasi tetap rapi: dokumen apa, rekening mana, siapa, kapan.
+model DokumenMutasi {
+  id         String   @id @default(cuid())
+  rekeningId String
+  rekening   Rekening @relation(fields: [rekeningId], references: [id])
+
+  /// Nama asli dari pengunggah — hanya untuk tampilan. File di disk memakai id.
+  namaFile String
+  tipe     String
+  ukuran   Int
+
+  /// Periode yang dicakup dokumen, format "YYYY-MM". Opsional.
+  periode String?
+  catatan String?
+
+  diunggahOlehId String?
+  diunggahOleh   User?    @relation(fields: [diunggahOlehId], references: [id])
+  diunggahPada   DateTime @default(now())
+
+  /// Kapan file akan dihapus dari disk.
+  kedaluwarsaPada DateTime
+  /// Terisi setelah file benar-benar terhapus (otomatis atau manual). Catatan tetap ada.
+  fileDihapusPada DateTime?
+
+  @@index([rekeningId, diunggahPada])
+  @@index([kedaluwarsaPada, fileDihapusPada])
 }
 
 model KodeAkun {

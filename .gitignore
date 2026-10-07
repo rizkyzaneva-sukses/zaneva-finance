@@ -23,3 +23,6 @@ scripts/setup-db.sql
 
 # Artefak build TypeScript
 *.tsbuildinfo
+
+# File dokumen mutasi yang diunggah (dihapus otomatis, tidak untuk repo)
+storage/
