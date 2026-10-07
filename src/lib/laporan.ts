@@ -286,7 +286,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     const kel = a.k?.kelompok;
     if (kel === "HARTA") asetLain.push(baris(a, -a.net));
     else if (kel === "UTANG" || kel === "PINJAMAN") liabilitas.push(baris(a, a.net));
-    else if (kel === "MODAL") modal.push(baris(a, a.net));
+    else if (kel === "MODAL" || kel === "ALOKASI") modal.push(baris(a, a.net));
     // Kelompok lain yang ditandai Neraca: saldo debit jadi aset, saldo kredit jadi liabilitas.
     else if (-a.net >= 0) asetLain.push(baris(a, -a.net));
     else liabilitas.push(baris(a, a.net));
@@ -340,14 +340,14 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
 
   // ───────────── Perubahan Modal (periode) ─────────────
   const modalSebelumSen = sebelumPeriode
-    .filter((e) => kategori(e.kode) === "NERACA" && e.kode?.kelompok === "MODAL")
+    .filter((e) => kategori(e.kode) === "NERACA" && (e.kode?.kelompok === "MODAL" || e.kode?.kelompok === "ALOKASI"))
     .reduce((s, e) => s + e.net, 0);
   const labaSebelumSen = labaDari(sebelumPeriode);
   const modalAwalSen = saldoAwalSen + modalSebelumSen + labaSebelumSen;
 
   const mutasiModal: BarisLaporan[] = tanpaNol(
     agregatPerKode(
-      dalamPeriode.filter((e) => kategori(e.kode) === "NERACA" && e.kode?.kelompok === "MODAL")
+      dalamPeriode.filter((e) => kategori(e.kode) === "NERACA" && (e.kode?.kelompok === "MODAL" || e.kode?.kelompok === "ALOKASI"))
     ).map((a) => baris(a, a.net))
   ).sort(urutKode);
   const totalMutasiModalSen = Math.round(jumlah(mutasiModal) * 100);

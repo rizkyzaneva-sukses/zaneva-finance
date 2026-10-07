@@ -140,7 +140,8 @@ untuk Dokumen. Container menjalankan `prisma migrate deploy` + seed otomatis saa
 - **Bendahara belum bisa dibatasi per kas.** Semua BENDAHARA melihat semua petty cash.
 - **Belum ada kunci bulan.** Setelah bulan ditutup bukunya, transaksi lama masih bisa diubah; kalau laba
   berubah, Alokasi hanya memberi peringatan, snapshot jatah tidak ikut berubah.
-- **Pemakaian Alokasi** hanya terhitung kalau kode alokasinya sudah diatur masuk laporan (default
-  "Belum diatur"); kalau belum, pengeluarannya muncul di "Belum diklasifikasi".
+- **Pemakaian dana alokasi di Laporan** diperlakukan sebagai pengurang ekuitas (Neraca dan Perubahan Modal)
+  dan aktivitas Pendanaan (Arus Kas), BUKAN beban Laba Rugi, supaya tidak mengurangi laba yang jadi dasar
+  alokasi. Ini asumsi; bisa diubah per kode di Kode Akun kalau pembukuan Anda beda.
 - **Dokumen tidak otomatis terhubung ke Rekap** — diunggah terpisah.
 - **OCR hanya diuji dengan gambar sintetis**, dan parser PDF Mandiri belum diuji ulang setelah refactor v2.

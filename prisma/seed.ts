@@ -194,7 +194,8 @@ function laporanAwal(kode: string, kelompok: Kelompok): Laporan | undefined {
     case Kelompok.LAINNYA:
       return kode === "900" ? Laporan.NERACA : undefined;
     case Kelompok.ALOKASI:
-      return undefined;
+      // Pemakaian dana alokasi = pengurang ekuitas (bukan beban), supaya tidak mengurangi laba yang jadi dasar alokasi
+      return Laporan.NERACA;
   }
 }
 
@@ -220,7 +221,8 @@ function aktivitasAwal(kode: string, kelompok: Kelompok): AktivitasKas | undefin
     case Kelompok.LAINNYA:
       return kode === "900" ? AktivitasKas.OPERASI : undefined;
     case Kelompok.ALOKASI:
-      return undefined;
+      // Dana alokasi dipakai = pembagian laba, bukan operasional
+      return AktivitasKas.PENDANAAN;
   }
 }
 

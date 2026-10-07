@@ -317,6 +317,11 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   },
   {
     kategori: "Alokasi",
+    t: "Pengeluaran dari kode alokasi (Zakat, Santunan, dll.) muncul di mana di Laporan?",
+    j: "Di Neraca dan Perubahan Modal sebagai pengurang ekuitas, dan di Arus Kas sebagai Pendanaan. Tidak masuk Laba Rugi, jadi tidak mengurangi laba yang menjadi dasar alokasi bulan berikutnya. Rincian saldo tiap alokasi (jatah dikurangi pemakaian) ada di halaman Alokasi. Kalau ingin perlakuan lain, ubah kolom Masuk laporan dan Arus kas pada kode itu di Kode Akun.",
+  },
+  {
+    kategori: "Alokasi",
     t: "Bagaimana saldo alokasi dihitung?",
     j: "Saldo = saldo awal + jatah dari distribusi yang sudah disahkan − pemakaian. Pemakaian dihitung otomatis dari transaksi uang keluar yang berkode alokasi itu (termasuk rincian split). Jatah bulanan = laba bersih yang disahkan OWNER × persen alokasi kode itu.",
   },
