@@ -27,6 +27,7 @@ interface Rekening {
   tanggalSaldoAwal: string;
   aktif: boolean;
   urutan: number;
+  brand: { id: string; nama: string } | null;
   _count: { transaksi: number };
 }
 
@@ -46,6 +47,7 @@ interface FormState {
   nomorRekening: string;
   saldoAwal: string;
   tanggalSaldoAwal: string;
+  brandId: string | null;
 }
 
 const FORM_KOSONG: FormState = {
@@ -55,6 +57,7 @@ const FORM_KOSONG: FormState = {
   nomorRekening: "",
   saldoAwal: "0",
   tanggalSaldoAwal: tanggalKeIso(new Date()),
+  brandId: null,
 };
 
 export default function RekeningPage() {
@@ -64,6 +67,14 @@ export default function RekeningPage() {
   const [menyimpan, setMenyimpan] = React.useState(false);
   const [hapusTarget, setHapusTarget] = React.useState<Rekening | null>(null);
   const [menghapus, setMenghapus] = React.useState(false);
+  const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/brand")
+      .then((r) => (r.ok ? r.json() : { brand: [] }))
+      .then((d) => setDaftarBrand(d.brand))
+      .catch(() => {});
+  }, []);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -98,6 +109,7 @@ export default function RekeningPage() {
         nomorRekening: form.nomorRekening,
         saldoAwal: Number(form.saldoAwal) || 0,
         tanggalSaldoAwal: form.tanggalSaldoAwal,
+        brandId: form.brandId,
       };
       const res = await fetch(form.id ? `/api/rekening/${form.id}` : "/api/rekening", {
         method: form.id ? "PATCH" : "POST",
@@ -192,6 +204,18 @@ export default function RekeningPage() {
               placeholder="Pilih bank"
             />
 
+            <SearchableSelect
+              label="Brand"
+              value={form.brandId}
+              onChange={(v) => setForm({ ...form, brandId: v })}
+              options={daftarBrand.map((b) => ({ value: b.id, label: b.nama }))}
+              placeholder="Tanpa brand"
+              emptyText="Belum ada brand. Brand dibuat saat unggah master produk di Stok & HPP."
+            />
+            <p className="-mt-2 text-xs text-gray-600 dark:text-gray-400">
+              Laporan per brand memuat rekening milik brand itu. Rekening tanpa brand hanya muncul di laporan Semua brand.
+            </p>
+
             <Field label="Nomor rekening">
               <input
                 value={form.nomorRekening}
@@ -258,6 +282,7 @@ export default function RekeningPage() {
                 <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Nama</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Bank</th>
+                  <th className="whitespace-nowrap px-2 py-2 font-medium">Brand</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">No. Rekening</th>
                   <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Saldo Awal</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Per Tanggal</th>
@@ -274,6 +299,9 @@ export default function RekeningPage() {
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
                       {r.bank === "PETTY_CASH" ? <Badge warna="kuning">Petty Cash</Badge> : labelBank(r.bank)}
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
+                      {r.brand?.nama ?? <span className="text-gray-500 dark:text-gray-400">—</span>}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
                       {r.nomorRekening || "—"}
@@ -304,6 +332,7 @@ export default function RekeningPage() {
                               nomorRekening: r.nomorRekening ?? "",
                               saldoAwal: String(r.saldoAwal),
                               tanggalSaldoAwal: tanggalKeIso(r.tanggalSaldoAwal),
+                              brandId: r.brand?.id ?? null,
                             })
                           }
                           className="rounded p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"

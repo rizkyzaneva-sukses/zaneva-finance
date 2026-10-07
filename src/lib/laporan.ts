@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hitungPersediaan, type RingkasPersediaan } from "@/lib/persediaan";
 import type { AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
 
 /**
@@ -127,9 +128,9 @@ function luarLaporan(entri: Entri[]): BarisLuarLaporan[] {
  * yaitu saldo transaksi terakhir pada atau sebelum `sampai`. Ini jalur hitung
  * yang berbeda dari laporan, jadi cocok dipakai sebagai pemeriksaan silang.
  */
-async function kasTersimpan(sampai: string, rekeningId: string | null): Promise<Sen> {
+async function kasTersimpan(sampai: string, rekeningIds: string[] | null): Promise<Sen> {
   const rekening = await prisma.rekening.findMany({
-    where: rekeningId ? { id: rekeningId } : undefined,
+    where: rekeningIds ? { id: { in: rekeningIds } } : undefined,
     select: { id: true, saldoAwal: true },
   });
 
@@ -145,12 +146,12 @@ async function kasTersimpan(sampai: string, rekeningId: string | null): Promise<
   return total;
 }
 
-async function ambilEntri(sampai: string, rekeningId: string | null) {
+async function ambilEntri(sampai: string, rekeningIds: string[] | null) {
   const [transaksi, kodeList] = await Promise.all([
     prisma.transaksi.findMany({
       where: {
         tanggal: { lte: new Date(`${sampai}T00:00:00.000Z`) },
-        ...(rekeningId ? { rekeningId } : {}),
+        ...(rekeningIds ? { rekeningId: { in: rekeningIds } } : {}),
       },
       select: {
         tanggal: true,
@@ -212,17 +213,43 @@ export interface OpsiLaporan {
   dari: string;
   sampai: string;
   rekeningId: string | null;
+  /** Laporan satu brand = rekening milik brand itu + persediaan brand itu. */
+  brandId?: string | null;
 }
 
-export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
-  const [entri, rekeningList, kasTersimpanSen, menungguAcc] = await Promise.all([
-    ambilEntri(sampai, rekeningId),
+const PERSEDIAAN_KOSONG: RingkasPersediaan = {
+  adaAwal: false,
+  awal: 0,
+  sebelumPeriode: 0,
+  akhir: 0,
+  sebelumTahun: 0,
+  posisiAkhir: null,
+  posisiAwal: null,
+  soTerakhir: null,
+  soTerakhirMenjangkau: false,
+};
+
+export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null }: OpsiLaporan) {
+  // Cakupan: satu rekening, atau semua rekening milik satu brand, atau semuanya.
+  let rekeningIds: string[] | null = rekeningId ? [rekeningId] : null;
+  let brandIds: string[] | null = null; // null = persediaan semua brand
+  if (!rekeningId && brandId) {
+    const milikBrand = await prisma.rekening.findMany({ where: { brandId }, select: { id: true } });
+    rekeningIds = milikBrand.map((r) => r.id);
+    brandIds = [brandId];
+  }
+  // Persediaan tidak bisa dibagi per rekening, jadi hanya muncul di laporan semua/per brand.
+  const pakaiPersediaan = !rekeningId;
+
+  const [entri, rekeningList, kasTersimpanSen, menungguAcc, persediaanHitung, kode599, rekeningTanpaBrand] =
+    await Promise.all([
+    ambilEntri(sampai, rekeningIds),
     prisma.rekening.findMany({
-      where: rekeningId ? { id: rekeningId } : undefined,
+      where: rekeningIds ? { id: { in: rekeningIds } } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
       select: { id: true, nama: true, saldoAwal: true, bank: true },
     }),
-    kasTersimpan(sampai, rekeningId),
+    kasTersimpan(sampai, rekeningIds),
     // Transaksi menunggu ACC TETAP dihitung di laporan: uangnya sudah berpindah
     // di rekening, yang menunggu hanya pengesahan pencatatannya. Jumlahnya
     // ditampilkan supaya pembaca tahu bagian mana yang belum final.
@@ -233,10 +260,16 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
           gte: new Date(`${dari}T00:00:00.000Z`),
           lte: new Date(`${sampai}T00:00:00.000Z`),
         },
-        ...(rekeningId ? { rekeningId } : {}),
+        ...(rekeningIds ? { rekeningId: { in: rekeningIds } } : {}),
       },
     }),
+    pakaiPersediaan ? hitungPersediaan(dari, sampai, brandIds) : Promise.resolve(PERSEDIAAN_KOSONG),
+    prisma.kodeAkun.findUnique({ where: { kode: "599" }, select: { id: true } }),
+    prisma.rekening.count({ where: { brandId: null } }),
   ]);
+  const P = persediaanHitung;
+  // Selisih HPP periode ini = persediaan sebelum periode − persediaan akhir periode.
+  const selisihHppSen = P.sebelumPeriode - P.akhir;
 
   const saldoAwalSen = rekeningList.reduce((s, r) => s + sen(r.saldoAwal), 0);
   const dalamPeriode = entri.filter((e) => e.tanggal >= dari && e.tanggal <= sampai);
@@ -255,6 +288,19 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     if (a.k?.kelompok === "PENDAPATAN") pendapatan.push(baris(a, a.net));
     else if (a.k?.kelompok === "PEMBELIAN") pembelian.push(baris(a, -a.net));
     else beban.push(baris(a, -a.net));
+  }
+  // Selisih HPP otomatis dari Stok Opname; digabung dengan transaksi bank berkode 599 kalau ada.
+  if (selisihHppSen !== 0) {
+    const ada = pembelian.find((b) => b.kode === "599");
+    if (ada) ada.nilai = rp(Math.round(ada.nilai * 100) + selisihHppSen);
+    else {
+      pembelian.push({
+        kodeAkunId: kode599?.id ?? null,
+        kode: "599",
+        nama: "Selisih HPP (persediaan awal − akhir)",
+        nilai: rp(selisihHppSen),
+      });
+    }
   }
   const lrPendapatan = tanpaNol(pendapatan).sort(urutKode);
   const lrPembelian = tanpaNol(pembelian).sort(urutKode);
@@ -291,12 +337,25 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     else if (-a.net >= 0) asetLain.push(baris(a, -a.net));
     else liabilitas.push(baris(a, a.net));
   }
+  // Kode 103 "Persediaan Barang Dagang" bisa terisi dari transaksi bank. Kalau SO juga dipakai,
+  // barang yang sama terhitung dua kali — ditandai di laporan supaya pembelian dipindah ke kode 5xx.
+  const bentrok103 = P.adaAwal ? (asetLain.find((b) => b.kode === "103")?.nilai ?? 0) : 0;
+  if (P.adaAwal) {
+    asetLain.push({
+      kodeAkunId: null,
+      kode: "",
+      nama: `Persediaan barang (SO per ${new Date(`${P.posisiAkhir}T00:00:00.000Z`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" })})`,
+      nilai: rp(P.akhir),
+    });
+  }
   const nAsetLain = tanpaNol(asetLain).sort(urutKode);
   const nLiabilitas = tanpaNol(liabilitas).sort(urutKode);
   const nModal = tanpaNol(modal).sort(urutKode);
 
-  const labaKumulatifSen = labaDari(entri);
-  const labaBerjalanSen = labaDari(entri.filter((e) => e.tanggal >= tahunBerjalanMulai));
+  // Laba dari transaksi bank dikurangi selisih HPP (persediaan awal − persediaan pada tanggal itu).
+  const labaKumulatifSen = labaDari(entri) - (P.awal - P.akhir);
+  const labaBerjalanSen =
+    labaDari(entri.filter((e) => e.tanggal >= tahunBerjalanMulai)) - (P.sebelumTahun - P.akhir);
   const labaDitahanSen = labaKumulatifSen - labaBerjalanSen;
 
   const luarNeraca = luarLaporan(entri);
@@ -314,7 +373,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
   const totalLiabilitas = jumlah(liabilitas);
   const totalModal = jumlah(modal);
   const totalEkuitasSen =
-    saldoAwalSen + Math.round(totalModal * 100) + labaDitahanSen + labaBerjalanSen;
+    saldoAwalSen + P.awal + Math.round(totalModal * 100) + labaDitahanSen + labaBerjalanSen;
   const totalPasivaSen =
     Math.round(totalLiabilitas * 100) + totalEkuitasSen + belumDiklasifikasiSen;
   const selisihNeraca = Math.round(totalAset * 100) - totalPasivaSen;
@@ -342,8 +401,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
   const modalSebelumSen = sebelumPeriode
     .filter((e) => kategori(e.kode) === "NERACA" && (e.kode?.kelompok === "MODAL" || e.kode?.kelompok === "ALOKASI"))
     .reduce((s, e) => s + e.net, 0);
-  const labaSebelumSen = labaDari(sebelumPeriode);
-  const modalAwalSen = saldoAwalSen + modalSebelumSen + labaSebelumSen;
+  const labaSebelumSen = labaDari(sebelumPeriode) - (P.awal - P.sebelumPeriode);
+  const modalAwalSen = saldoAwalSen + P.awal + modalSebelumSen + labaSebelumSen;
 
   const mutasiModal: BarisLaporan[] = tanpaNol(
     agregatPerKode(
@@ -351,7 +410,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     ).map((a) => baris(a, a.net))
   ).sort(urutKode);
   const totalMutasiModalSen = Math.round(jumlah(mutasiModal) * 100);
-  const labaPeriodeSen = labaDari(dalamPeriode);
+  const labaPeriodeSen = labaDari(dalamPeriode) - selisihHppSen;
   const modalAkhirSen = modalAwalSen + totalMutasiModalSen + labaPeriodeSen;
 
   const selisihKas = Math.round(totalKas * 100) - kasTersimpanSen;
@@ -361,6 +420,26 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     rekening: rekeningList.map((r) => ({ id: r.id, nama: r.nama })),
     jumlahTransaksiPeriode: dalamPeriode.length,
     menungguAcc,
+
+    cakupan: {
+      brandId: rekeningId ? null : brandId,
+      rekeningTanpaBrand,
+      jumlahRekening: rekeningList.length,
+    },
+    persediaan: {
+      dipakai: pakaiPersediaan,
+      adaAwal: P.adaAwal,
+      awal: rp(P.awal),
+      sebelumPeriode: rp(P.sebelumPeriode),
+      akhir: rp(P.akhir),
+      selisihHpp: rp(selisihHppSen),
+      /** Saldo kode 103 di Neraca padahal SO dipakai: kemungkinan dobel dengan persediaan SO */
+      bentrokKode103: bentrok103,
+      posisiAkhir: P.posisiAkhir,
+      soTerakhir: P.soTerakhir,
+      /** false = periode ini melewati SO terakhir; angka persediaan akhir mungkin belum final */
+      soMenjangkau: P.soTerakhirMenjangkau,
+    },
 
     /**
      * Satu-satunya pemeriksaan yang berarti di laporan ini: kas versi laporan
@@ -401,6 +480,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
       totalLiabilitas,
       ekuitas: {
         saldoAwalRekening: rp(saldoAwalSen),
+        persediaanAwal: rp(P.awal),
         modal: nModal,
         labaDitahan: rp(labaDitahanSen),
         labaBerjalan: rp(labaBerjalanSen),
@@ -434,6 +514,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     perubahanModal: {
       awal: {
         saldoAwalRekening: rp(saldoAwalSen),
+        persediaanAwal: rp(P.awal),
         modalDanPriveSebelumnya: rp(modalSebelumSen),
         labaSebelumnya: rp(labaSebelumSen),
         total: rp(modalAwalSen),

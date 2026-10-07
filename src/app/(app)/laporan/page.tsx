@@ -175,6 +175,88 @@ function Tabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+function CatatanPersediaan({ d }: { d: HasilLaporan }) {
+  const p = d.persediaan;
+  const kotak = (warna: "amber" | "blue", isi: React.ReactNode, ikon: "w" | "i" = "i") => (
+    <div
+      className={cn(
+        "mb-4 flex items-start gap-2 rounded-xl border px-4 py-2.5 text-sm",
+        warna === "amber"
+          ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+          : "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+      )}
+    >
+      {ikon === "w" ? (
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+      ) : (
+        <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      )}
+      <span>{isi}</span>
+    </div>
+  );
+
+  return (
+    <>
+      {!p.dipakai &&
+        kotak(
+          "blue",
+          "Laporan per rekening tidak menampilkan persediaan (stok tidak terbagi per rekening). Pilih Semua rekening atau satu brand untuk melihat persediaan dan Selisih HPP."
+        )}
+      {p.dipakai &&
+        !p.adaAwal &&
+        kotak(
+          "blue",
+          <>
+            Persediaan belum dimasukkan, jadi Neraca belum memuat nilai stok dan belum ada Selisih HPP.{" "}
+            <Link href="/stok" className="font-medium underline">
+              Unggah Persediaan Awal
+            </Link>
+          </>
+        )}
+      {p.dipakai &&
+        p.adaAwal &&
+        !p.soMenjangkau &&
+        kotak(
+          "amber",
+          <>
+            <strong>Persediaan akhir memakai SO per {p.posisiAkhir && tanggalPanjang(p.posisiAkhir)}</strong>; belum
+            ada SO untuk akhir periode ini. Selisih HPP dan laba periode belum final sampai SO berikutnya
+            diunggah.{" "}
+            <Link href="/stok" className="font-medium underline">
+              Stok &amp; HPP
+            </Link>
+          </>,
+          "w"
+        )}
+      {p.dipakai &&
+        p.bentrokKode103 !== 0 &&
+        kotak(
+          "amber",
+          <>
+            <strong>Kode 103 Persediaan Barang Dagang masih berisi {formatRupiah(p.bentrokKode103)}</strong> dari
+            transaksi bank, padahal persediaan sekarang dihitung dari SO. Kalau itu pembelian barang, pindahkan
+            ke kode pembelian (5xx) supaya tidak terhitung dobel.{" "}
+            <Link href="/transaksi" className="font-medium underline">
+              Lihat transaksi
+            </Link>
+          </>,
+          "w"
+        )}
+      {d.cakupan.brandId &&
+        d.cakupan.rekeningTanpaBrand > 0 &&
+        kotak(
+          "blue",
+          <>
+            {d.cakupan.rekeningTanpaBrand} rekening belum diberi brand, jadi tidak masuk laporan brand ini.{" "}
+            <Link href="/master/rekening" className="font-medium underline">
+              Atur di Rekening
+            </Link>
+          </>
+        )}
+    </>
+  );
+}
+
 function PeringatanBelumDiatur({
   baris,
   konteks,
@@ -350,6 +432,9 @@ function Neraca({ d }: { d: HasilLaporan["neraca"] }) {
 
             <Judul>Ekuitas</Judul>
             <Garis nama="Modal awal (saldo awal rekening)" nilai={e.saldoAwalRekening} />
+            {e.persediaanAwal !== 0 && (
+              <Garis nama="Modal awal (persediaan awal / harta awal)" nilai={e.persediaanAwal} />
+            )}
             <Daftar baris={e.modal} />
             <Garis nama="Laba (rugi) ditahan" nilai={e.labaDitahan} />
             <Garis nama="Laba (rugi) tahun berjalan" nilai={e.labaBerjalan} />
@@ -444,6 +529,9 @@ function PerubahanModal({ d }: { d: HasilLaporan["perubahanModal"] }) {
       <Tabel>
         <Judul>Modal awal periode</Judul>
         <Garis nama="Saldo awal rekening" nilai={d.awal.saldoAwalRekening} />
+        {d.awal.persediaanAwal !== 0 && (
+          <Garis nama="Persediaan awal (harta awal)" nilai={d.awal.persediaanAwal} />
+        )}
         <Garis nama="Modal dan prive periode sebelumnya" nilai={d.awal.modalDanPriveSebelumnya} />
         <Garis nama="Laba (rugi) periode sebelumnya" nilai={d.awal.labaSebelumnya} />
         <Total label="Modal awal" nilai={d.awal.total} />
@@ -486,6 +574,8 @@ export default function LaporanPage() {
   const [dari, setDari] = React.useState(awal.dari);
   const [sampai, setSampai] = React.useState(awal.sampai);
   const [rekeningId, setRekeningId] = React.useState<string | null>(null);
+  const [brandId, setBrandId] = React.useState<string | null>(null);
+  const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
   const [data, setData] = React.useState<HasilLaporan | null>(null);
   const [daftarRekening, setDaftarRekening] = React.useState<{ id: string; nama: string }[]>([]);
   const [memuat, setMemuat] = React.useState(true);
@@ -497,6 +587,8 @@ export default function LaporanPage() {
         const res = await fetch("/api/rekening");
         const json = await res.json();
         if (res.ok) setDaftarRekening(json.rekening);
+        const rb = await fetch("/api/brand");
+        if (rb.ok) setDaftarBrand((await rb.json()).brand);
       } catch {
         /* dropdown rekening tetap kosong, laporan semua rekening tetap jalan */
       }
@@ -510,6 +602,7 @@ export default function LaporanPage() {
     try {
       const q = new URLSearchParams({ dari, sampai });
       if (rekeningId) q.set("rekeningId", rekeningId);
+      else if (brandId) q.set("brandId", brandId);
       const res = await fetch(`/api/laporan?${q}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json.error);
@@ -521,7 +614,7 @@ export default function LaporanPage() {
     } finally {
       setMemuat(false);
     }
-  }, [dari, sampai, rekeningId]);
+  }, [dari, sampai, rekeningId, brandId]);
 
   React.useEffect(() => {
     muat();
@@ -546,7 +639,7 @@ export default function LaporanPage() {
       />
 
       <Card className="mb-4">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <SearchableSelect
             label="Periode"
             value={preset}
@@ -583,9 +676,23 @@ export default function LaporanPage() {
             />
           </div>
           <SearchableSelect
+            label="Brand"
+            value={brandId}
+            onChange={(v) => {
+              setBrandId(v);
+              if (v) setRekeningId(null);
+            }}
+            options={daftarBrand.map((b) => ({ value: b.id, label: b.nama }))}
+            placeholder="Semua brand"
+            emptyText="Belum ada brand"
+          />
+          <SearchableSelect
             label="Rekening"
             value={rekeningId}
-            onChange={setRekeningId}
+            onChange={(v) => {
+              setRekeningId(v);
+              if (v) setBrandId(null);
+            }}
             options={daftarRekening.map((r) => ({ value: r.id, label: r.nama }))}
             placeholder="Semua rekening"
             emptyText="Belum ada rekening"
@@ -635,11 +742,14 @@ export default function LaporanPage() {
                 {" · "}
                 {rekeningId
                   ? data.rekening.find((r) => r.id === rekeningId)?.nama
-                  : `${data.rekening.length} rekening`}
+                  : brandId
+                    ? `Brand ${daftarBrand.find((b) => b.id === brandId)?.nama ?? ""} · ${data.rekening.length} rekening`
+                    : `${data.rekening.length} rekening`}
               </p>
             </div>
 
             <Pemeriksaan p={data.pemeriksaan} />
+            {(tab === "neraca" || tab === "laba-rugi" || tab === "perubahan-modal") && <CatatanPersediaan d={data} />}
 
             {data.menungguAcc > 0 && (
               <div className="mb-4 flex items-start gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">

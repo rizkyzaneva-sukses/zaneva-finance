@@ -25,6 +25,9 @@ export async function PATCH(req: Request, { params }: Params) {
     if (typeof body.nomorRekening === "string") data.nomorRekening = body.nomorRekening.trim() || null;
     if (typeof body.aktif === "boolean") data.aktif = body.aktif;
     if (body.urutan !== undefined) data.urutan = Number(body.urutan) || 0;
+    if (body.brandId !== undefined) {
+      data.brand = body.brandId ? { connect: { id: String(body.brandId) } } : { disconnect: true };
+    }
 
     // Mengubah titik nol pembukuan menggeser saldo seluruh transaksi rekening ini.
     const saldoAwalBerubah =
@@ -43,8 +46,8 @@ export async function PATCH(req: Request, { params }: Params) {
           entitas: "Rekening",
           entitasId: id,
           aksi: AksiAudit.UBAH,
-          dataLama: { nama: lama.nama, saldoAwal: lama.saldoAwal.toFixed(2), aktif: lama.aktif },
-          dataBaru: { nama: hasil.nama, saldoAwal: hasil.saldoAwal.toFixed(2), aktif: hasil.aktif },
+          dataLama: { nama: lama.nama, saldoAwal: lama.saldoAwal.toFixed(2), aktif: lama.aktif, brandId: lama.brandId },
+          dataBaru: { nama: hasil.nama, saldoAwal: hasil.saldoAwal.toFixed(2), aktif: hasil.aktif, brandId: hasil.brandId },
         },
       });
       return hasil;

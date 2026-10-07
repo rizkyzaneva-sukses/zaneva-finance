@@ -44,6 +44,7 @@ interface Periode {
   labaLive: number;
   belumMasuk: { jumlahTransaksi: number; nilai: number };
   menungguAcc: number;
+  soBelumMenjangkau: boolean;
   disahkan: { id: string; labaBersih: number; oleh: string; pada: string } | null;
   berubah: boolean;
   distribusi: { oleh: string; pada: string; total: number; item: ItemDistribusi[] } | null;
@@ -381,13 +382,14 @@ export default function AlokasiPage() {
                     </div>
                   </div>
 
-                  {(p.belumMasuk.jumlahTransaksi > 0 || p.menungguAcc > 0) && !p.distribusi && (
+                  {(p.belumMasuk.jumlahTransaksi > 0 || p.menungguAcc > 0 || p.soBelumMenjangkau) && !p.distribusi && (
                     <div className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
                       <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         {p.belumMasuk.jumlahTransaksi > 0 &&
                           `${p.belumMasuk.jumlahTransaksi} transaksi belum masuk Laba Rugi (kodenya belum diatur), jadi laba bisa tidak lengkap. `}
                         {p.menungguAcc > 0 && `${p.menungguAcc} transaksi masih menunggu ACC. `}
+                        {p.soBelumMenjangkau && "SO akhir bulan ini belum diunggah, jadi Selisih HPP dan laba belum final. "}
                         <Link href="/laporan" className="font-medium underline">
                           Periksa di Laporan
                         </Link>
@@ -592,7 +594,7 @@ export default function AlokasiPage() {
                 aksi.p.belumMasuk.jumlahTransaksi > 0
                   ? ` Perhatian: ${aksi.p.belumMasuk.jumlahTransaksi} transaksi belum masuk Laba Rugi, jadi angka ini bisa tidak lengkap.`
                   : ""
-              }`
+              }${aksi.p.soBelumMenjangkau ? " Perhatian: SO akhir bulan ini belum diunggah, jadi Selisih HPP belum masuk laba." : ""}`
             : aksi?.jenis === "buka-laba"
               ? "Pengesahan laba dihapus. Laba perlu disahkan lagi sebelum bisa dibagikan."
               : "Seluruh jatah bulan ini dihapus dari saldo alokasi. Laba tetap berstatus disahkan. Pembatalan tercatat di Log Aktivitas."

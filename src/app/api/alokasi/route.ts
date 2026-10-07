@@ -123,6 +123,7 @@ export async function GET() {
           labaLive: live.laba,
           belumMasuk: live.belumMasuk,
           menungguAcc: live.menungguAcc,
+          soBelumMenjangkau: live.soBelumMenjangkau,
           disahkan,
           // Laba berubah sejak disahkan: ada transaksi yang diubah/ditambah di bulan itu.
           berubah: disahkan ? Math.abs(disahkan.labaBersih - live.laba) >= 0.01 : false,

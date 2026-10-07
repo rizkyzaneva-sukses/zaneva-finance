@@ -26,3 +26,7 @@ scripts/setup-db.sql
 
 # File dokumen mutasi yang diunggah (dihapus otomatis, tidak untuk repo)
 storage/
+
+# Berkas data pengguna (bukan kode)
+~$*
+master_produk_*.xlsx

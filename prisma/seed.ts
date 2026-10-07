@@ -82,6 +82,8 @@ const KODE_AKUN: [kode: string, nama: string, kelompok: Kelompok, sistem?: boole
   ["52013", "Pembelian ke Vendor Sae", Kelompok.PEMBELIAN],
   ["52014", "Pembelian ke Vendor Mastor", Kelompok.PEMBELIAN],
   ["52015", "Pembelian ke Vendor Wildan", Kelompok.PEMBELIAN],
+  // Dihitung otomatis dari Stok Opname: persediaan awal − persediaan akhir. Bukan untuk transaksi bank.
+  ["599", "Selisih HPP", Kelompok.PEMBELIAN, true],
 
   ["601", "Beban Gaji", Kelompok.BEBAN],
   ["602", "Beban Komisi Admin", Kelompok.BEBAN],

@@ -56,6 +56,8 @@ export async function labaBulan(tahun: number, bulan: number) {
       nilai: Math.round(belumMasuk.reduce((s, b) => s + b.nilai, 0) * 100) / 100,
     },
     menungguAcc: lap.menungguAcc,
+    // SO sudah dipakai tapi belum ada yang menjangkau akhir bulan ini: Selisih HPP, jadi laba, belum final.
+    soBelumMenjangkau: lap.persediaan.adaAwal && !lap.persediaan.soMenjangkau,
     jumlahTransaksi: lap.jumlahTransaksiPeriode,
   };
 }

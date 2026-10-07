@@ -14,7 +14,7 @@ export async function GET() {
       // BENDAHARA hanya perlu (dan boleh) melihat kas tunai
       where: auth.user.role === Role.BENDAHARA ? { bank: Bank.PETTY_CASH } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
-      include: { _count: { select: { transaksi: true } } },
+      include: { _count: { select: { transaksi: true } }, brand: { select: { id: true, nama: true } } },
     });
     return NextResponse.json({ rekening });
   } catch (err) {
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
         saldoAwal: new Prisma.Decimal(body.saldoAwal || 0),
         tanggalSaldoAwal: new Date(`${tanggalSaldoAwal}T00:00:00.000Z`),
         urutan: Number(body.urutan) || 0,
+        brandId: body.brandId ? String(body.brandId) : null,
       },
     });
 

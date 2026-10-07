@@ -21,6 +21,13 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
   kode alokasi sesuai persen (diatur di Kode Akun); saldo = jatah dari laba − pemakaian lewat mutasi
 - **Dokumen** — unggah screenshot/PDF mutasi per rekening. File dihapus otomatis dari server setelah
   3 hari (`DOKUMEN_RETENSI_HARI`), catatannya tetap permanen
+- **Stok & HPP** — master produk multi-brand (SKU, Brand, HPP) dengan mass edit HPP lewat template
+  Excel, dan stok opname (Persediaan Awal sekali, lalu SO Bulanan). Nilai persediaan = stok × HPP,
+  HPP dikunci saat SO disimpan. Dipakai Laporan: Persediaan di Neraca, dan **599 Selisih HPP**
+  (persediaan awal − akhir) di Laba Rugi. File yang salah ditampilkan di pop up per baris, dengan
+  Excel baris gagal untuk diperbaiki
+- **Laporan per brand** — rekening diberi brand; laporan bisa difilter per brand (rekening milik brand
+  itu + persediaan brand itu) atau semua brand
 - **Log Aktivitas** (OWNER) — siapa mengubah/menghapus apa, dengan data sebelum dan sesudah
 - **Panduan** — Quick Start, Tanya Jawab, Workflow, dan penjelasan tiap role di dalam aplikasi
 - **Rekap** — upload screenshot mutasi bank apa pun (BCA, Mandiri, BRI, BNI) atau
@@ -145,3 +152,11 @@ untuk Dokumen. Container menjalankan `prisma migrate deploy` + seed otomatis saa
   alokasi. Ini asumsi; bisa diubah per kode di Kode Akun kalau pembukuan Anda beda.
 - **Dokumen tidak otomatis terhubung ke Rekap** — diunggah terpisah.
 - **OCR hanya diuji dengan gambar sintetis**, dan parser PDF Mandiri belum diuji ulang setelah refactor v2.
+- **Brand dihubungkan lewat rekening.** Transaksi tidak punya brand sendiri; kalau satu rekening dipakai
+  beberapa brand, semua transaksinya masuk ke satu brand. Rekening tanpa brand hanya muncul di "Semua brand".
+- **Persediaan tidak muncul di laporan per rekening** (stok tidak terbagi per rekening).
+- **Kode 103 Persediaan Barang Dagang vs SO:** kalau transaksi bank masih memakai 103 padahal SO dipakai,
+  barang terhitung dobel. Laporan memberi peringatan; pembelian barang sebaiknya ke kode 5xx.
+- **SO yang menunggu ACC tetap dihitung** di laporan (sama seperti transaksi menunggu ACC).
+- **Tutup buku Alokasi sebaiknya setelah SO akhir bulan diunggah.** Kalau belum, Selisih HPP belum masuk
+  laba; Alokasi memberi peringatan tapi tidak memblokir.

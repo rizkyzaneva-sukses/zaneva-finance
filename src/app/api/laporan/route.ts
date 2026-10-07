@@ -25,7 +25,12 @@ export async function GET(req: Request) {
       );
     }
 
-    const laporan = await hitungLaporan({ dari, sampai, rekeningId: sp.get("rekeningId") || null });
+    const laporan = await hitungLaporan({
+      dari,
+      sampai,
+      rekeningId: sp.get("rekeningId") || null,
+      brandId: sp.get("brandId") || null,
+    });
     return NextResponse.json(laporan);
   } catch (err) {
     return apiError(err);

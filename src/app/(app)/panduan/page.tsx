@@ -316,6 +316,46 @@ const QNA: { kategori: string; t: string; j: string }[] = [
     j: "Transfer antar rekening dicatat dua kali: keluar di satu rekening dan masuk di rekening lain, dengan efek total nol. Kalau laporan dibatasi satu rekening, hanya satu sisinya yang terlihat. Pilih \"Semua rekening\" untuk laporan usaha yang utuh.",
   },
   {
+    kategori: "Persediaan",
+    t: "Dari mana nilai persediaan di Neraca?",
+    j: "Dari Stok Opname: Σ stok × HPP semua SKU, dipecah per brand. SO terakhir yang tanggal stoknya sudah lewat dipakai untuk tanggal Neraca. Bukan dari transaksi bank.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Apa itu 599 Selisih HPP?",
+    j: "Baris otomatis di Laba Rugi: persediaan awal periode dikurangi persediaan akhir periode. Positif berarti stok berkurang (menambah HPP), negatif berarti stok bertambah (mengurangi HPP). Jadi HPP = Pembelian (kode 5xx) + Selisih HPP. Tidak perlu diinput manual.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Kapan SO diunggah dan tanggalnya diisi apa?",
+    j: "Tim SO tanggal 1 (atau tanggal 2 kalau tanggal 1 libur) lalu diunggah di tanggal itu. Isi Tanggal input dengan hari itu. Sistem otomatis menganggap SO tanggal 1 sampai 5 sebagai stok akhir bulan sebelumnya; tanggal stoknya bisa diubah di form. Cukup sekali isi tanggal untuk seluruh file.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Kalau HPP produk berubah, apakah Neraca bulan lalu ikut berubah?",
+    j: "Tidak. HPP tiap SKU dikunci (snapshot) saat SO disimpan. Perubahan HPP hanya berlaku untuk SO berikutnya. Karena itu isi HPP dulu di Master Produk sebelum mengunggah SO; pop up pemeriksaan memperingatkan SKU berstok yang HPP-nya masih 0.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Bagaimana mengubah HPP banyak SKU sekaligus?",
+    j: "Di Stok & HPP → Master Produk: Download template (sudah berisi data sekarang), ubah kolom HPP di Excel, lalu Unggah. Sistem menampilkan SKU mana yang berubah (HPP lama → baru) sebelum disimpan. Hanya ADMIN dan OWNER.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "SKU di file SO tidak ada di master, apa yang terjadi?",
+    j: "Baris itu ditolak dan muncul di pop up lengkap dengan nomor baris dan alasannya. Klik Download Excel baris gagal, perbaiki, lalu unggah ulang. Anda bisa memilih menyimpan baris yang valid saja, tapi nilai persediaan jadi lebih kecil dari kenyataan, jadi lebih aman memperbaiki dulu.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Kenapa Neraca menunjukkan peringatan 'SO belum menjangkau periode ini' atau 'kode 103'?",
+    j: "Peringatan pertama: SO terakhir yang ada lebih lama dari akhir periode laporan, jadi persediaan akhir dan Selisih HPP belum final sampai SO berikutnya diunggah (penting sebelum tutup buku Alokasi). Peringatan kedua: kode 103 Persediaan Barang Dagang masih berisi transaksi bank, padahal persediaan kini dihitung dari SO. Pindahkan pembelian barang ke kode 5xx supaya tidak dobel.",
+  },
+  {
+    kategori: "Persediaan",
+    t: "Bagaimana laporan per brand?",
+    j: "Di Laporan pilih Brand. Isinya rekening yang diberi brand itu (atur di menu Rekening) ditambah persediaan brand itu. Rekening tanpa brand hanya muncul di Semua brand. Laporan per satu rekening tidak menampilkan persediaan.",
+  },
+  {
     kategori: "Alokasi",
     t: "Pengeluaran dari kode alokasi (Zakat, Santunan, dll.) muncul di mana di Laporan?",
     j: "Di Neraca dan Perubahan Modal sebagai pengurang ekuitas, dan di Arus Kas sebagai Pendanaan. Tidak masuk Laba Rugi, jadi tidak mengurangi laba yang menjadi dasar alokasi bulan berikutnya. Rincian saldo tiap alokasi (jatah dikurangi pemakaian) ada di halaman Alokasi. Kalau ingin perlakuan lain, ubah kolom Masuk laporan dan Arus kas pada kode itu di Kode Akun.",
@@ -476,7 +516,20 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
     ],
   },
   {
-    judul: "5. Arsip dokumen mutasi",
+    judul: "5. Stok opname dan persediaan",
+    deskripsi: "Dasar nilai persediaan di Neraca dan Selisih HPP di Laba Rugi. Sekali SO untuk semua produk dan semua brand.",
+    langkah: [
+      { role: "ADMIN", teks: "Sekali di awal: unggah master produk (SKU, Brand, HPP) di Stok & HPP → Master Produk. Sistem menampilkan hasil pemeriksaan dulu, termasuk brand baru dan baris yang gagal" },
+      { role: "ADMIN", teks: "Hubungkan tiap rekening ke brand-nya di menu Rekening (dasar laporan per brand)" },
+      { role: "ADMIN", teks: "Sekali di awal: unggah Persediaan Awal. Nilainya masuk modal awal (harta awal), bukan laba" },
+      { role: "STAFF", teks: "Tiap awal bulan (tgl 1, atau tgl 2 kalau libur): unggah SO Bulanan, isi tanggal input sekali di form, bukan per baris", status: "Menunggu ACC" },
+      { teks: "Sistem memeriksa file. Kalau ada SKU yang tidak ada di master atau stok tidak valid, muncul pop up berisi alasan per baris, plus file Excel baris gagal untuk diperbaiki" },
+      { role: "ADMIN", teks: "Setujui SO. HPP tiap SKU dikunci saat SO disimpan, jadi Neraca bulan lalu tidak berubah walau HPP diubah kemudian", status: "Disetujui" },
+      { teks: "Laporan per brand menghitung Persediaan (Neraca) dan 599 Selisih HPP = persediaan awal periode − akhir periode (Laba Rugi)" },
+    ],
+  },
+  {
+    judul: "6. Arsip dokumen mutasi",
     deskripsi: "Supaya dokumentasi per rekening rapi, tanpa menyimpan file selamanya.",
     langkah: [
       { role: "STAFF", teks: "Unggah PDF atau gambar di menu Dokumen, pilih rekening dan periode" },
@@ -609,6 +662,8 @@ const MATRIKS: { aksi: string; o: Izin; a: Izin; s: Izin; b: Izin }[] = [
   { aksi: "Dashboard, Laporan, export Excel", o: true, a: true, s: true, b: false },
   { aksi: "Unggah dan unduh Dokumen", o: true, a: true, s: true, b: false },
   { aksi: "Hapus file Dokumen lebih awal", o: true, a: true, s: false, b: false },
+  { aksi: "Unggah Stok Opname (SO)", o: true, a: true, s: "acc", b: "acc" },
+  { aksi: "Master Produk dan HPP (lihat, ubah, mass edit)", o: true, a: true, s: false, b: false },
   { aksi: "Kelola Rekening dan Kode Akun", o: true, a: true, s: false, b: false },
   { aksi: "Lihat Alokasi dan saldonya", o: true, a: true, s: false, b: false },
   { aksi: "Sahkan distribusi alokasi", o: true, a: true, s: false, b: false },

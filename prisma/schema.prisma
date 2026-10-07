@@ -92,13 +92,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  transaksiDibuat Transaksi[] @relation("TransaksiDibuat")
-  transaksiDiubah Transaksi[] @relation("TransaksiDiubah")
-  transaksiDiAcc  Transaksi[] @relation("TransaksiDiAcc")
+  transaksiDibuat Transaksi[]         @relation("TransaksiDibuat")
+  transaksiDiubah Transaksi[]         @relation("TransaksiDiubah")
+  transaksiDiAcc  Transaksi[]         @relation("TransaksiDiAcc")
   auditLogs       AuditLog[]
   periodeDisahkan PeriodeLaba[]
   distribusiAcc   DistribusiAlokasi[]
   dokumenDiunggah DokumenMutasi[]
+  soDiunggah      StokOpname[]        @relation("SoDiunggah")
+  soDiAcc         StokOpname[]        @relation("SoDiAcc")
 }
 
 model Rekening {
@@ -115,6 +117,10 @@ model Rekening {
   urutan    Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// Laporan per brand = rekening-rekening milik brand itu. Kosong = tidak masuk laporan brand manapun.
+  brandId String?
+  brand   Brand?  @relation(fields: [brandId], references: [id])
 
   transaksi Transaksi[]
   dokumen   DokumenMutasi[]
@@ -206,11 +212,11 @@ model PeriodeLaba {
 
 /// Jatah alokasi satu kode akun dari laba satu periode, disahkan ADMIN (Finance).
 model DistribusiAlokasi {
-  id        String      @id @default(cuid())
-  periodeId String
-  periode   PeriodeLaba @relation(fields: [periodeId], references: [id])
+  id         String      @id @default(cuid())
+  periodeId  String
+  periode    PeriodeLaba @relation(fields: [periodeId], references: [id])
   kodeAkunId String
-  kodeAkun   KodeAkun   @relation(fields: [kodeAkunId], references: [id])
+  kodeAkun   KodeAkun    @relation(fields: [kodeAkunId], references: [id])
 
   /// Persentase pada saat dibagikan — disalin supaya perubahan persen di masa
   /// depan tidak mengubah riwayat.
@@ -254,10 +260,10 @@ model Transaksi {
   dedupeHash String
 
   /// ACC pencatatan oleh ADMIN/OWNER. Lihat komentar enum StatusAcc.
-  statusAcc  StatusAcc @default(DISETUJUI)
-  accOlehId  String?
-  accOleh    User?     @relation("TransaksiDiAcc", fields: [accOlehId], references: [id])
-  accPada    DateTime?
+  statusAcc StatusAcc @default(DISETUJUI)
+  accOlehId String?
+  accOleh   User?     @relation("TransaksiDiAcc", fields: [accOlehId], references: [id])
+  accPada   DateTime?
 
   createdById String?
   createdBy   User?    @relation("TransaksiDibuat", fields: [createdById], references: [id])
@@ -286,9 +292,9 @@ model TransaksiRincian {
   kodeAkun    KodeAkun  @relation(fields: [kodeAkunId], references: [id])
 
   /// Selalu positif; arah (masuk/keluar) mengikuti transaksi induknya.
-  nominal    Decimal @db.Decimal(18, 2)
+  nominal    Decimal  @db.Decimal(18, 2)
   keterangan String?
-  urutan     Int     @default(0)
+  urutan     Int      @default(0)
   createdAt  DateTime @default(now())
 
   @@index([transaksiId])
@@ -308,4 +314,90 @@ model AuditLog {
 
   @@index([entitas, entitasId])
   @@index([createdAt])
+}
+
+enum JenisSo {
+  /// Persediaan awal pembukuan (harta awal). Masuk ke modal awal, bukan ke laba.
+  AWAL
+  /// Stok opname rutin tiap awal bulan. Selisihnya dengan SO sebelumnya jadi "Selisih HPP".
+  BULANAN
+}
+
+/// Brand produk. Nama kanonik disimpan di sini; kunci = huruf+angka kecil saja,
+/// supaya "BE SYAR'I" dan "BESYARI" dikenali sebagai brand yang sama.
+model Brand {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  kunci     String   @unique
+  createdAt DateTime @default(now())
+
+  rekening Rekening[]
+  produk   Produk[]
+  soItem   StokOpnameItem[]
+}
+
+/// Master produk: satu SKU satu baris, HPP per unit. Nilai persediaan = stok x HPP.
+model Produk {
+  id       String  @id @default(cuid())
+  sku      String
+  /// Kunci pencocokan: SKU dirapikan (spasi ganda, huruf besar/kecil) supaya "Adrea  Hoodie" = "adrea hoodie".
+  skuKunci String  @unique
+  brandId  String
+  brand    Brand   @relation(fields: [brandId], references: [id])
+  hpp      Decimal @default(0) @db.Decimal(18, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  soItem StokOpnameItem[]
+
+  @@index([brandId])
+}
+
+/// Satu kali stok opname untuk SEMUA produk sekaligus (multi brand).
+model StokOpname {
+  id    String  @id @default(cuid())
+  jenis JenisSo
+
+  /// Kapan tim menginput/menghitung (mis. tgl 1 atau 2 bulan berikutnya).
+  tanggalInput DateTime @db.Date
+  /// Stok ini berlaku PADA tanggal berapa. SO tgl 1-5 diperlakukan sebagai stok akhir bulan sebelumnya (default UI, bisa diubah).
+  posisiPada   DateTime @db.Date
+  catatan      String?
+
+  jumlahSku  Int     @default(0)
+  totalStok  Int     @default(0)
+  totalNilai Decimal @default(0) @db.Decimal(18, 2)
+
+  statusAcc StatusAcc @default(DISETUJUI)
+  accOlehId String?
+  accOleh   User?     @relation("SoDiAcc", fields: [accOlehId], references: [id])
+  accPada   DateTime?
+
+  diunggahOlehId String?
+  diunggahOleh   User?    @relation("SoDiunggah", fields: [diunggahOlehId], references: [id])
+  createdAt      DateTime @default(now())
+
+  items StokOpnameItem[]
+
+  @@index([posisiPada])
+}
+
+model StokOpnameItem {
+  id           String     @id @default(cuid())
+  stokOpnameId String
+  stokOpname   StokOpname @relation(fields: [stokOpnameId], references: [id], onDelete: Cascade)
+  produkId     String
+  produk       Produk     @relation(fields: [produkId], references: [id])
+  /// Snapshot saat SO diunggah, supaya perubahan master tidak mengubah Neraca bulan lalu.
+  sku          String
+  brandId      String
+  brand        Brand      @relation(fields: [brandId], references: [id])
+  stok         Int
+  hpp          Decimal    @db.Decimal(18, 2)
+  /// stok x hpp, dihitung sekali saat unggah.
+  nilai        Decimal    @db.Decimal(18, 2)
+
+  @@unique([stokOpnameId, produkId])
+  @@index([brandId])
 }
