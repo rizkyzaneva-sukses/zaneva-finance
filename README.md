@@ -10,7 +10,19 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
 
 ## Fitur
 
-- **Multi-user** dengan 4 role: OWNER, ADMIN, STAFF, VIEWER
+- **Multi-user** dengan 4 role: OWNER, ADMIN (= Finance), STAFF, BENDAHARA. Matriks lengkap ada di
+  halaman **Panduan** → tab *Penjelasan tiap Role*
+- **Alur ACC** — koreksi oleh STAFF/BENDAHARA menandai transaksi "Menunggu ACC" (badge); ADMIN/OWNER
+  yang menyetujui. Transaksi yang menunggu ACC tetap ikut laporan (asumsi, lihat Panduan)
+- **Petty cash** — jenis rekening sendiri, kelompok sendiri di Neraca (bukan Harta), tapi diperlakukan
+  seperti kas. BENDAHARA hanya melihat dan menginput transaksi petty cash
+- **Input transaksi manual** dari halaman Transaksi
+- **Alokasi dari laba** — OWNER menutup buku laba bersih bulan lalu, ADMIN/OWNER mendistribusikan ke
+  kode alokasi sesuai persen (diatur di Kode Akun); saldo = jatah dari laba − pemakaian lewat mutasi
+- **Dokumen** — unggah screenshot/PDF mutasi per rekening. File dihapus otomatis dari server setelah
+  3 hari (`DOKUMEN_RETENSI_HARI`), catatannya tetap permanen
+- **Log Aktivitas** (OWNER) — siapa mengubah/menghapus apa, dengan data sebelum dan sesudah
+- **Panduan** — Quick Start, Tanya Jawab, Workflow, dan penjelasan tiap role di dalam aplikasi
 - **Rekap** — upload screenshot mutasi bank apa pun (BCA, Mandiri, BRI, BNI) atau
   PDF e-Statement Mandiri, diparsing jadi baris transaksi
 - **Saran kode akun otomatis** dari chart of accounts internal (146 kode), bisa
@@ -23,7 +35,8 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
 - **Laporan** — Laba Rugi, Neraca, Arus Kas, dan Perubahan Modal (basis kas), dihitung dari
   transaksi dan kode akun. Transaksi yang tidak punya kode, atau kodenya belum diatur masuk
   laporan apa, ditampung di "Belum diklasifikasi" dengan peringatan, jadi Neraca selalu seimbang
-  dan tidak ada uang yang hilang diam-diam
+  dan tidak ada uang yang hilang diam-diam. Tab Laporan juga punya kotak **Pemeriksaan** yang
+  membandingkan kas laporan dengan saldo tersimpan per transaksi
 - **Split transaksi** — satu transaksi bank dipecah ke beberapa kode akun
 - **Export Excel** format `No. | Tanggal | Kode | Keterangan | Uang masuk | Uang keluar | Saldo | Catatan`
 - Light + dark mode, mengikuti OS dan bisa di-override
@@ -83,6 +96,8 @@ Skrip ini hanya menyentuh rekening berawalan `[DUMMY]`; datamu tidak disentuh. M
 | `SEED_ADMIN_PASSWORD` | Password user OWNER pertama saat seed (default `admin123`) |
 | `OPENROUTER_API_KEY` | API key dari [openrouter.ai](https://openrouter.ai), dipakai untuk OCR & saran kode akun |
 | `OPENROUTER_MODEL` | Model vision, default `google/gemini-2.5-flash` |
+| `DOKUMEN_DIR` | Folder penyimpanan file Dokumen (default `./storage/dokumen`). **Di server arahkan ke volume persisten** |
+| `DOKUMEN_RETENSI_HARI` | Lama file Dokumen disimpan sebelum dihapus otomatis (default 3) |
 
 ## Cara kerja
 
@@ -106,8 +121,9 @@ sebagai pembanding — kalau selisihnya ≥ Rp 1, baris itu diberi peringatan.
 
 ## Deploy
 
-Lihat [DEPLOY_EASYPANEL.md](DEPLOY_EASYPANEL.md). Di produksi pakai
-`prisma migrate deploy` (tidak butuh izin `CREATEDB`).
+Lihat [DEPLOY_EASYPANEL.md](DEPLOY_EASYPANEL.md): butuh service PostgreSQL, dan volume persisten
+untuk Dokumen. Container menjalankan `prisma migrate deploy` + seed otomatis saat start
+(tidak butuh izin `CREATEDB`).
 
 ## Yang belum dikerjakan / keterbatasan
 
@@ -117,9 +133,14 @@ Lihat [DEPLOY_EASYPANEL.md](DEPLOY_EASYPANEL.md). Di produksi pakai
   nominal, dan keterangan sama persis) akan ikut ter-skip. Baris yang ditolak tetap
   ditahan di layar dengan penjelasan dan tombol **Tetap masukkan**, jadi tidak ada yang
   hilang diam-diam.
-- **Belum ada UI untuk menambah transaksi manual.** Endpoint-nya ada
-  (`POST /api/transaksi`) tapi belum dipasang tombolnya di halaman Transaksi.
 - **Beberapa kode akun bernama sama persis** (kode 70202–70214 semuanya "Pinjaman
   Internal"), sehingga AI tidak bisa membedakannya dan akan mengosongkan kodenya.
   Perlu nama pembeda. Lihat Open Items di PRD v2.
 - Belum ada tes otomatis.
+- **Bendahara belum bisa dibatasi per kas.** Semua BENDAHARA melihat semua petty cash.
+- **Belum ada kunci bulan.** Setelah bulan ditutup bukunya, transaksi lama masih bisa diubah; kalau laba
+  berubah, Alokasi hanya memberi peringatan, snapshot jatah tidak ikut berubah.
+- **Pemakaian Alokasi** hanya terhitung kalau kode alokasinya sudah diatur masuk laporan (default
+  "Belum diatur"); kalau belum, pengeluarannya muncul di "Belum diklasifikasi".
+- **Dokumen tidak otomatis terhubung ke Rekap** — diunggah terpisah.
+- **OCR hanya diuji dengan gambar sintetis**, dan parser PDF Mandiri belum diuji ulang setelah refactor v2.

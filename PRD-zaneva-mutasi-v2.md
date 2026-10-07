@@ -6,6 +6,32 @@
 
 ---
 
+## Addendum (7 Oktober 2026) — perubahan setelah draft ini
+
+Bagian di bawah ini ditulis sebelum fitur berikut dibangun. **Kalau bertentangan, addendum ini yang berlaku.**
+
+- **Role:** VIEWER dihapus. Role sekarang OWNER, ADMIN (= Finance), STAFF, BENDAHARA.
+  BENDAHARA = orang gudang yang memegang petty cash: hanya melihat/menginput transaksi rekening
+  petty cash, tanpa Dashboard/Rekap/Laporan. Matriks lengkap ada di halaman Panduan aplikasi.
+- **Alur ACC:** koreksi STAFF/BENDAHARA → `statusAcc = MENUNGGU` (badge); ADMIN/OWNER menyetujui.
+  Edit oleh ADMIN/OWNER langsung DISETUJUI. Transaksi MENUNGGU tetap dihitung di laporan.
+- **Petty cash:** nilai `Bank.PETTY_CASH`; rekening boleh lebih dari satu; di Neraca tampil sebagai
+  subgrup sendiri di bawah kas, bukan Harta.
+- **Input manual** tersedia dari halaman Transaksi.
+- **Laporan** (Laba Rugi, Neraca, Arus Kas, Perubahan Modal) dan **split transaksi** (TransaksiRincian)
+  sudah ada; lihat README.
+- **Alokasi dari laba:** OWNER menyimpan snapshot laba bersih bulan yang sudah berakhir
+  (`PeriodeLaba`); ADMIN/OWNER mendistribusikannya ke kode alokasi sesuai `persenAlokasi`
+  (`DistribusiAlokasi`, nominal di-snapshot). Saldo alokasi = saldo awal + jatah − pemakaian via
+  mutasi. Laba ≤ 0 tidak didistribusikan; total persen ≤ 100; pembatalan hanya OWNER.
+- **Dokumen:** unggah screenshot/PDF mutasi per rekening; file di disk (`DOKUMEN_DIR`), dihapus
+  setelah `DOKUMEN_RETENSI_HARI` (default 3) oleh timer per jam + pembersihan saat daftar dibuka;
+  catatan `DokumenMutasi` permanen. Ini **mengubah** constraint "file sumber dibuang" di bawah
+  hanya untuk fitur Dokumen; Rekap tetap tidak menyimpan file.
+- **Log Aktivitas** (OWNER) membaca `AuditLog`. **Panduan** adalah halaman bantuan di dalam aplikasi.
+
+---
+
 ## 0. Ringkasan Perubahan dari v1
 
 v1 adalah **tool parsing stateless**: upload mutasi → download Excel → data hilang.
@@ -41,7 +67,7 @@ Pengguna: tim keuangan Zaneva (beberapa orang, bukan single user lagi). Tujuan u
 ## 2. Requirements
 
 - **Aksesibilitas:** Web, desktop-first. Harus tetap terbaca di HP (375px) karena tim kadang cek dashboard dari HP, tapi flow upload+koreksi dioptimalkan untuk desktop.
-- **Pengguna:** Multi-user, 4 role — OWNER, ADMIN, STAFF, VIEWER.
+- **Pengguna:** Multi-user, 4 role — OWNER, ADMIN, STAFF, BENDAHARA (VIEWER sudah dihapus, lihat Addendum).
 - **Auth:** iron-session + username/password tersimpan di DB (hash). **Bukan** Google OAuth. Menggantikan `APP_PASSWORD` tunggal di v1.
 - **Data Input:** Upload gambar (jpg/png, multi-file) dan PDF (berpassword). Plus input manual satu baris untuk koreksi/penyesuaian.
 - **Export:** Excel (.xlsx) format rekap 8 kolom, per rekening per rentang tanggal.
@@ -63,7 +89,7 @@ Login username + password. Role dibaca **fresh dari DB setiap request**, tidak d
 | OWNER | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | ADMIN | ✓ | ✓ | ✓ | ✓ | ✓ | — |
 | STAFF | ✓ | ✓ | ✓ | — | — | — |
-| VIEWER | ✓ | — | — | — | — | — |
+| BENDAHARA | — | — | petty cash saja, via ACC | — | — | — |
 
 - Seed user awal: `admin` / `admin123` (role OWNER), bisa di-override lewat env `SEED_ADMIN_PASSWORD`.
 - Rate limit di endpoint login (5 percobaan / 15 menit per IP) — sudah ada di v1, dipertahankan.
@@ -378,8 +404,8 @@ erDiagram
 | `AuditLog` | Jejak perubahan transaksi & master data: siapa, kapan, dari apa ke apa. |
 
 **Enum:**
-- `Role`: `OWNER | ADMIN | STAFF | VIEWER`
-- `Bank`: `BCA | MANDIRI | BRI | BNI | LAINNYA`
+- `Role`: `OWNER | ADMIN | STAFF | BENDAHARA`
+- `Bank`: `BCA | MANDIRI | BRI | BNI | PETTY_CASH | LAINNYA`
 - `Kelompok`: `HARTA | UTANG | MODAL | PENDAPATAN | PEMBELIAN | BEBAN | PINJAMAN | ALOKASI | LAINNYA`
 - `StatusKode`: `KOSONG | SARAN_AI | DIKONFIRMASI`
 - `Sumber`: `SCREENSHOT | PDF | MANUAL`
