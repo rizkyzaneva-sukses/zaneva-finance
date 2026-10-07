@@ -4,6 +4,7 @@ import { bolehKelola } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
+import { bacaPersenAlokasi } from "@/lib/split";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -30,6 +31,11 @@ export async function PATCH(req: Request, { params }: Params) {
       data.aktivitasKas = Object.values(AktivitasKas).includes(body.aktivitasKas)
         ? body.aktivitasKas
         : null;
+    }
+    if ("persenAlokasi" in body) {
+      const persen = bacaPersenAlokasi(body.persenAlokasi);
+      if (!persen.ok) return NextResponse.json({ error: persen.error }, { status: 400 });
+      data.persenAlokasi = persen.nilai;
     }
     if (typeof body.aktif === "boolean") {
       if (lama.sistem && !body.aktif) {

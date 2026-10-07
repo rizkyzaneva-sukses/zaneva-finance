@@ -112,6 +112,10 @@ model KodeAkun {
   /// Masuk bagian mana di Laporan Arus Kas. null = belum diatur.
   aktivitasKas AktivitasKas?
 
+  /// Persentase dari laba yang dialokasikan ke kode ini, mis. 30.00 untuk 30%.
+  /// Hanya relevan untuk kelompok ALOKASI. null = tidak dialokasikan dari laba.
+  persenAlokasi Decimal? @db.Decimal(5, 2)
+
   /// Kode bawaan sistem (0000 Saldo) — tidak bisa dihapus/dinonaktifkan dari UI.
   sistem Boolean @default(false)
 

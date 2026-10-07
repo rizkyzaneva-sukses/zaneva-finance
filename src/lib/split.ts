@@ -1,6 +1,30 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
+/**
+ * Baca persentase alokasi dari input user. Mengembalikan undefined kalau
+ * field-nya tidak dikirim sama sekali, null kalau sengaja dikosongkan.
+ */
+export function bacaPersenAlokasi(
+  nilai: unknown
+): { ok: true; nilai: Prisma.Decimal | null } | { ok: false; error: string } {
+  if (nilai === null || nilai === "" || nilai === undefined) return { ok: true, nilai: null };
+
+  let d: Prisma.Decimal;
+  try {
+    d = new Prisma.Decimal(String(nilai));
+  } catch {
+    return { ok: false, error: "Persentase alokasi harus berupa angka" };
+  }
+  if (!d.isFinite() || d.lt(0) || d.gt(100)) {
+    return { ok: false, error: "Persentase alokasi harus antara 0 dan 100" };
+  }
+  if (d.decimalPlaces() > 2) {
+    return { ok: false, error: "Persentase alokasi maksimal 2 angka di belakang koma" };
+  }
+  return { ok: true, nilai: d };
+}
+
 export interface RincianMasuk {
   kodeAkunId?: unknown;
   nominal?: unknown;

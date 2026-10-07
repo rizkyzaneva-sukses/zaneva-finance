@@ -3,6 +3,7 @@ import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelola } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
+import { bacaPersenAlokasi } from "@/lib/split";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin();
@@ -47,9 +48,20 @@ export async function POST(req: Request) {
       ? (body.aktivitasKas as AktivitasKas)
       : null;
 
+    const persen = bacaPersenAlokasi(body.persenAlokasi);
+    if (!persen.ok) return NextResponse.json({ error: persen.error }, { status: 400 });
+
     const terakhir = await prisma.kodeAkun.aggregate({ _max: { urutan: true } });
     const kodeAkun = await prisma.kodeAkun.create({
-      data: { kode, nama, kelompok, laporan, aktivitasKas, urutan: (terakhir._max.urutan ?? 0) + 1 },
+      data: {
+        kode,
+        nama,
+        kelompok,
+        laporan,
+        aktivitasKas,
+        persenAlokasi: persen.nilai,
+        urutan: (terakhir._max.urutan ?? 0) + 1,
+      },
     });
 
     return NextResponse.json({ kodeAkun });

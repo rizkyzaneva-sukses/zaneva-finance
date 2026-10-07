@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Trash2, Search, Lock } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Lock, Percent, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
   Badge,
@@ -24,6 +24,7 @@ interface KodeAkun {
   kelompok: string;
   laporan: string | null;
   aktivitasKas: string | null;
+  persenAlokasi: string | null;
   aktif: boolean;
   sistem: boolean;
   _count: { transaksi: number; rincian: number };
@@ -79,6 +80,7 @@ interface FormState {
   kelompok: string | null;
   laporan: string | null;
   aktivitasKas: string | null;
+  persenAlokasi: string;
 }
 
 const FORM_KOSONG: FormState = {
@@ -88,6 +90,7 @@ const FORM_KOSONG: FormState = {
   kelompok: null,
   laporan: null,
   aktivitasKas: null,
+  persenAlokasi: "",
 };
 
 export default function KodeAkunPage() {
@@ -119,6 +122,12 @@ export default function KodeAkunPage() {
     muat();
   }, [muat]);
 
+  // Ringkasan persen dihitung dari SEMUA kode aktif, bukan hasil filter —
+  // kalau ikut filter, totalnya bisa terlihat aman padahal sebenarnya lewat 100%.
+  const berpersen = daftar.filter((k) => k.persenAlokasi !== null && k.aktif);
+  const totalPersen =
+    Math.round(berpersen.reduce((s, k) => s + Number(k.persenAlokasi) * 100, 0)) / 100;
+
   const tersaring = daftar.filter((k) => {
     const cocokCari =
       !cari ||
@@ -149,6 +158,7 @@ export default function KodeAkunPage() {
           kelompok: form.kelompok,
           laporan: form.laporan,
           aktivitasKas: form.aktivitasKas,
+          persenAlokasi: form.persenAlokasi.trim() === "" ? null : form.persenAlokasi,
         }),
       });
       const data = await res.json();
@@ -255,6 +265,27 @@ export default function KodeAkunPage() {
               options={OPSI_AKTIVITAS}
               placeholder="Belum diatur"
             />
+            <Field
+              label="Persen alokasi dari laba"
+              hint="Untuk kode kelompok ALOKASI. Contoh: 30 untuk 30% dari laba. Kosongkan kalau tidak dialokasikan dari laba."
+            >
+              <div className="relative">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  value={form.persenAlokasi}
+                  onChange={(e) => setForm({ ...form, persenAlokasi: e.target.value })}
+                  placeholder="0"
+                  className={`${INPUT_CLASS} pr-8 tabular-nums`}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">
+                  %
+                </span>
+              </div>
+            </Field>
             <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" varian="sekunder" onClick={() => setForm(null)}>
                 Batal
@@ -304,6 +335,28 @@ export default function KodeAkunPage() {
         </div>
       </Card>
 
+      {totalPersen > 0 && (
+        <div
+          className={
+            totalPersen > 100
+              ? "mb-4 flex items-start gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-900 dark:border-red-800 dark:bg-red-900/30 dark:text-red-200"
+              : "mb-4 flex items-start gap-2 rounded-xl border border-gray-300 bg-gray-50 px-4 py-2.5 text-sm text-gray-700 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-gray-300"
+          }
+        >
+          {totalPersen > 100 ? (
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          ) : (
+            <Percent className="mt-0.5 h-4 w-4 shrink-0" />
+          )}
+          <span>
+            Total persen alokasi dari laba: <strong>{totalPersen}%</strong> dari{" "}
+            {berpersen.length} kode ({berpersen.map((k) => `${k.kode} ${Number(k.persenAlokasi)}%`).join(", ")}).
+            {totalPersen > 100 && " Lebih dari 100% — jatah yang dibagikan akan melebihi laba."}
+            {totalPersen < 100 && ` Sisa ${Math.round((100 - totalPersen) * 100) / 100}% tidak dialokasikan.`}
+          </span>
+        </div>
+      )}
+
       <Card>
         {memuat ? (
           <Skeleton baris={10} />
@@ -323,6 +376,7 @@ export default function KodeAkunPage() {
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Kelompok</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Masuk laporan</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Arus kas</th>
+                    <th className="whitespace-nowrap px-2 py-2 text-right font-medium">% Alokasi</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Dipakai</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Status</th>
                     <th className="px-2 py-2"></th>
@@ -349,6 +403,13 @@ export default function KodeAkunPage() {
                       <td className="whitespace-nowrap px-2 py-2">
                         <BadgeAktivitas aktivitas={k.aktivitasKas} />
                       </td>
+                      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
+                        {k.persenAlokasi === null ? (
+                          <span className="text-gray-500 dark:text-gray-500">—</span>
+                        ) : (
+                          `${Number(k.persenAlokasi)}%`
+                        )}
+                      </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right text-gray-900 dark:text-gray-50">
                         {k._count.transaksi + k._count.rincian}
                       </td>
@@ -369,6 +430,8 @@ export default function KodeAkunPage() {
                                 kelompok: k.kelompok,
                                 laporan: k.laporan,
                                 aktivitasKas: k.aktivitasKas,
+                                persenAlokasi:
+                                  k.persenAlokasi === null ? "" : String(Number(k.persenAlokasi)),
                               })
                             }
                             className="rounded p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
