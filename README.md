@@ -26,6 +26,8 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
   HPP dikunci saat SO disimpan. Dipakai Laporan: Persediaan di Neraca, dan **599 Selisih HPP**
   (persediaan awal − akhir) di Laba Rugi. File yang salah ditampilkan di pop up per baris, dengan
   Excel baris gagal untuk diperbaiki
+- **Dashboard per brand** — filter Brand di Dashboard (saldo rekening brand itu, cash flow, breakdown), ringkasan laba
+  bulan lalu dan bulan berjalan, persediaan terkini, dan tabel perbandingan antar brand
 - **Laporan per brand** — rekening diberi brand; laporan bisa difilter per brand (rekening milik brand
   itu + persediaan brand itu) atau semua brand
 - **Log Aktivitas** (OWNER) — siapa mengubah/menghapus apa, dengan data sebelum dan sesudah

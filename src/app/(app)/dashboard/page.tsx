@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Scale, ListChecks } from "lucide-react";
+import { AlertTriangle, ArrowDownLeft, ArrowUpRight, Boxes, Scale, ListChecks } from "lucide-react";
 import { toast } from "sonner";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, INPUT_CLASS } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -16,6 +16,28 @@ interface KartuRekening {
   saldo: number;
   tanggalTerakhir: string | null;
   perluCek: boolean;
+  brandId: string | null;
+}
+
+interface RingkasBulan {
+  dari: string;
+  sampai: string;
+  pendapatan: number;
+  hpp: number;
+  labaKotor: number;
+  beban: number;
+  labaBersih: number;
+  hppBelumFinal: boolean;
+}
+
+interface BarisBrand {
+  id: string;
+  nama: string;
+  kas: number;
+  persediaan: number;
+  labaKotorLalu: number;
+  labaBersihLalu: number;
+  hppBelumFinalLalu: boolean;
 }
 
 interface BarisBreakdown {
@@ -35,6 +57,28 @@ interface DataDashboard {
   breakdown: BarisBreakdown[];
   belumBeres: number;
   menungguAcc: number;
+  bulanan: {
+    bulanLalu: RingkasBulan;
+    bulanIni: RingkasBulan;
+    persediaan: { dipakai: boolean; adaAwal: boolean; nilai: number; posisi: string | null };
+  };
+  perBrand: BarisBrand[] | null;
+  rekeningTanpaBrand: number;
+}
+
+const NAMA_BULAN = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+function namaBulan(isoStr: string) {
+  const [y, m] = isoStr.split("-").map(Number);
+  return `${NAMA_BULAN[m - 1]} ${y}`;
+}
+
+function Rp({ n, tebal }: { n: number; tebal?: boolean }) {
+  return (
+    <span className={cn("tabular-nums", tebal && "font-semibold", n < 0 ? "text-red-700 dark:text-red-400" : "text-gray-900 dark:text-gray-50")}>
+      {n < 0 ? `(${formatRupiah(-n)})` : formatRupiah(n)}
+    </span>
+  );
 }
 
 function StatTile({
@@ -69,10 +113,153 @@ function StatTile({
   );
 }
 
+function RingkasanLaba({ d, cakupanRekening }: { d: DataDashboard; cakupanRekening: boolean }) {
+  const { bulanLalu, bulanIni, persediaan } = d.bulanan;
+  const baris: { label: string; lalu: number; ini: number; tebal?: boolean }[] = [
+    { label: "Pendapatan", lalu: bulanLalu.pendapatan, ini: bulanIni.pendapatan },
+    { label: "HPP (pembelian + Selisih HPP)", lalu: bulanLalu.hpp, ini: bulanIni.hpp },
+    { label: "Laba kotor", lalu: bulanLalu.labaKotor, ini: bulanIni.labaKotor, tebal: true },
+    { label: "Beban", lalu: bulanLalu.beban, ini: bulanIni.beban },
+    { label: "Laba bersih", lalu: bulanLalu.labaBersih, ini: bulanIni.labaBersih, tebal: true },
+  ];
+  return (
+    <div className="grid gap-3 lg:grid-cols-3">
+      <Card className="lg:col-span-2">
+        <h2 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-50">Ringkasan laba</h2>
+        <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
+          Dari mesin Laporan yang sama, jadi angkanya sama dengan halaman Laporan. Tidak terpengaruh filter tanggal di atas.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-right text-gray-600 dark:border-zinc-700 dark:text-gray-400">
+                <th className="px-2 py-2 text-left font-medium"></th>
+                <th className="whitespace-nowrap px-2 py-2 font-medium">{namaBulan(bulanLalu.dari)}</th>
+                <th className="whitespace-nowrap px-2 py-2 font-medium">{namaBulan(bulanIni.dari)} (berjalan)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {baris.map((b) => (
+                <tr key={b.label} className="border-b border-gray-100 dark:border-zinc-800">
+                  <td className={cn("px-2 py-1.5 text-gray-900 dark:text-gray-50", b.tebal && "font-semibold")}>{b.label}</td>
+                  <td className="px-2 py-1.5 text-right"><Rp n={b.lalu} tebal={b.tebal} /></td>
+                  <td className="px-2 py-1.5 text-right"><Rp n={b.ini} tebal={b.tebal} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {bulanIni.hppBelumFinal && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Bulan berjalan belum memuat Selisih HPP: SO akhir bulan baru ada setelah tanggal 1 bulan depan, jadi laba bulan ini belum final.
+          </p>
+        )}
+        {bulanLalu.hppBelumFinal && (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            SO akhir {namaBulan(bulanLalu.dari)} belum diunggah, jadi Selisih HPP bulan itu belum masuk.{" "}
+            <Link href="/stok" className="font-medium underline">Stok &amp; HPP</Link>
+          </p>
+        )}
+      </Card>
+
+      <StatTile
+        label={
+          !persediaan.dipakai
+            ? "Persediaan (tidak tersedia per rekening)"
+            : persediaan.adaAwal && persediaan.posisi
+              ? `Persediaan (SO per ${persediaan.posisi.split("-").reverse().join("/")})`
+              : "Persediaan"
+        }
+        nilai={persediaan.dipakai && persediaan.adaAwal ? formatRupiah(persediaan.nilai) : "—"}
+        ikon={Boxes}
+      />
+      {!persediaan.adaAwal && persediaan.dipakai && !cakupanRekening && (
+        <p className="text-xs text-gray-600 dark:text-gray-400 lg:col-start-3">
+          Belum ada Persediaan Awal.{" "}
+          <Link href="/stok" className="font-medium underline">Unggah di Stok &amp; HPP</Link>
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PerbandinganBrand({
+  baris,
+  tanpaBrand,
+  pilih,
+}: {
+  baris: BarisBrand[];
+  tanpaBrand: number;
+  pilih: (id: string) => void;
+}) {
+  const jumlah = (f: (b: BarisBrand) => number) => baris.reduce((s, b) => s + f(b), 0);
+  return (
+    <Card>
+      <h2 className="mb-1 text-sm font-semibold text-gray-900 dark:text-gray-50">Perbandingan antar brand</h2>
+      <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
+        Klik nama brand untuk melihat dashboard brand itu. Laba memakai bulan lalu (sudah final kalau SO-nya ada).
+      </p>
+      {tanpaBrand > 0 && (
+        <div className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {tanpaBrand} rekening aktif belum diberi brand, jadi tidak termasuk di tabel ini.{" "}
+            <Link href="/master/rekening" className="font-medium underline">Atur di Rekening</Link>
+          </span>
+        </div>
+      )}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200 text-right text-gray-600 dark:border-zinc-700 dark:text-gray-400">
+              <th className="px-2 py-2 text-left font-medium">Brand</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Kas</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Persediaan</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Laba kotor bln lalu</th>
+              <th className="whitespace-nowrap px-2 py-2 font-medium">Laba bersih bln lalu</th>
+            </tr>
+          </thead>
+          <tbody>
+            {baris.map((b) => (
+              <tr key={b.id} className="border-b border-gray-100 dark:border-zinc-800">
+                <td className="px-2 py-1.5">
+                  <button type="button" onClick={() => pilih(b.id)} className="font-medium text-blue-700 underline-offset-2 hover:underline dark:text-blue-300">
+                    {b.nama}
+                  </button>
+                  {b.hppBelumFinalLalu && (
+                    <span title="SO akhir bulan lalu belum diunggah" className="ml-1.5">
+                      <Badge warna="kuning">HPP belum final</Badge>
+                    </span>
+                  )}
+                </td>
+                <td className="px-2 py-1.5 text-right"><Rp n={b.kas} /></td>
+                <td className="px-2 py-1.5 text-right"><Rp n={b.persediaan} /></td>
+                <td className="px-2 py-1.5 text-right"><Rp n={b.labaKotorLalu} /></td>
+                <td className="px-2 py-1.5 text-right"><Rp n={b.labaBersihLalu} /></td>
+              </tr>
+            ))}
+            <tr className="border-t-2 border-gray-300 dark:border-zinc-600">
+              <td className="px-2 py-1.5 font-semibold text-gray-900 dark:text-gray-50">Total brand</td>
+              <td className="px-2 py-1.5 text-right"><Rp n={jumlah((b) => b.kas)} tebal /></td>
+              <td className="px-2 py-1.5 text-right"><Rp n={jumlah((b) => b.persediaan)} tebal /></td>
+              <td className="px-2 py-1.5 text-right"><Rp n={jumlah((b) => b.labaKotorLalu)} tebal /></td>
+              <td className="px-2 py-1.5 text-right"><Rp n={jumlah((b) => b.labaBersihLalu)} tebal /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = React.useState<DataDashboard | null>(null);
   const [memuat, setMemuat] = React.useState(true);
   const [rekeningId, setRekeningId] = React.useState<string | null>(null);
+  const [brandId, setBrandId] = React.useState<string | null>(null);
+  const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
   const [dari, setDari] = React.useState("");
   const [sampai, setSampai] = React.useState("");
 
@@ -81,6 +268,7 @@ export default function DashboardPage() {
     try {
       const q = new URLSearchParams();
       if (rekeningId) q.set("rekeningId", rekeningId);
+      else if (brandId) q.set("brandId", brandId);
       if (dari) q.set("dari", dari);
       if (sampai) q.set("sampai", sampai);
       const res = await fetch(`/api/dashboard?${q}`);
@@ -92,11 +280,18 @@ export default function DashboardPage() {
     } finally {
       setMemuat(false);
     }
-  }, [rekeningId, dari, sampai]);
+  }, [rekeningId, brandId, dari, sampai]);
 
   React.useEffect(() => {
     muat();
   }, [muat]);
+
+  React.useEffect(() => {
+    fetch("/api/brand")
+      .then((r) => (r.ok ? r.json() : { brand: [] }))
+      .then((d) => setDaftarBrand(d.brand))
+      .catch(() => {});
+  }, []);
 
   const opsiRekening = React.useMemo(
     () => (data?.kartuRekening ?? []).map((r) => ({ value: r.id, label: r.nama, hint: labelBank(r.bank) })),
@@ -108,9 +303,29 @@ export default function DashboardPage() {
 
   return (
     <>
-      <PageHeader judul="Dashboard" deskripsi="Ringkasan cash flow dan saldo seluruh rekening." />
+      <PageHeader
+        judul="Dashboard"
+        deskripsi={
+          brandId
+            ? `Brand ${daftarBrand.find((b) => b.id === brandId)?.nama ?? ""}: rekening milik brand ini.`
+            : "Ringkasan cash flow dan saldo seluruh rekening."
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
+        <div className="w-48">
+          <SearchableSelect
+            label="Brand"
+            value={brandId}
+            onChange={(v) => {
+              setBrandId(v);
+              setRekeningId(null);
+            }}
+            options={daftarBrand.map((b) => ({ value: b.id, label: b.nama }))}
+            placeholder="Semua brand"
+            emptyText="Belum ada brand"
+          />
+        </div>
         <div className="w-56">
           <SearchableSelect
             label="Rekening"
@@ -196,6 +411,19 @@ export default function DashboardPage() {
                 masih berupa saran AI yang belum dikonfirmasi, atau ditandai tidak yakin.
               </span>
             </Link>
+          )}
+
+          <RingkasanLaba d={data} cakupanRekening={rekeningId !== null} />
+
+          {data.perBrand && data.perBrand.length > 0 && (
+            <PerbandinganBrand
+              baris={data.perBrand}
+              tanpaBrand={data.rekeningTanpaBrand}
+              pilih={(id) => {
+                setBrandId(id);
+                setRekeningId(null);
+              }}
+            />
           )}
 
           <div>

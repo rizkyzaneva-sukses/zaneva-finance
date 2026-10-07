@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { StatusKode } from "@/generated/prisma/enums";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { saldoMeleset } from "@/lib/rekap";
+import { ringkasBulanan, ringkasPerBrand } from "@/lib/dashboard-brand";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin(bolehLihatLaporan);
@@ -14,11 +15,19 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const where = filterDariQuery(sp);
 
+    // Brand = semua rekening milik brand itu. Kalau satu rekening dipilih, rekening yang menang.
+    const rekeningDipilih = sp.get("rekeningId") || null;
+    const brandId = rekeningDipilih ? null : sp.get("brandId") || null;
+    const rekeningBrand = brandId
+      ? (await prisma.rekening.findMany({ where: { brandId }, select: { id: true } })).map((r) => r.id)
+      : null;
+    if (rekeningBrand) where.rekeningId = { in: rekeningBrand };
+
     const [rekeningAktif, agregat, perKode, rincianRows, belumBeres, semuaDalamFilter, menungguAcc] = await Promise.all([
       prisma.rekening.findMany({
-        where: { aktif: true },
+        where: { aktif: true, ...(rekeningBrand ? { id: { in: rekeningBrand } } : {}) },
         orderBy: [{ urutan: "asc" }, { nama: "asc" }],
-        select: { id: true, nama: true, bank: true, saldoAwal: true },
+        select: { id: true, nama: true, bank: true, saldoAwal: true, brandId: true },
       }),
       prisma.transaksi.aggregate({
         where,
@@ -74,6 +83,7 @@ export async function GET(req: Request) {
           id: r.id,
           nama: r.nama,
           bank: r.bank,
+          brandId: r.brandId,
           saldo: Number(terakhir?.saldo ?? r.saldoAwal),
           tanggalTerakhir: terakhir?.tanggal ?? null,
           perluCek: terakhir ? saldoMeleset(terakhir.saldo, terakhir.saldoBank) : false,
@@ -145,7 +155,31 @@ export async function GET(req: Request) {
       })
       .sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
 
+    // Ringkasan laba bulanan + persediaan dari mesin Laporan; perbandingan antar brand hanya
+    // di tampilan Semua (tanpa filter brand/rekening).
+    const bulanan = await ringkasBulanan(brandId, rekeningDipilih);
+    let perBrand = null;
+    let rekeningTanpaBrand = 0;
+    if (!brandId && !rekeningDipilih) {
+      const [daftarBrand, tanpaBrand] = await Promise.all([
+        prisma.brand.findMany({ orderBy: { nama: "asc" }, select: { id: true, nama: true } }),
+        prisma.rekening.count({ where: { aktif: true, brandId: null } }),
+      ]);
+      rekeningTanpaBrand = tanpaBrand;
+      if (daftarBrand.length > 0) {
+        const hasil = await ringkasPerBrand(daftarBrand.map((b) => b.id));
+        perBrand = daftarBrand.map((b) => {
+          const h = hasil.find((x) => x.brandId === b.id)!;
+          const kas = kartuRekening.filter((k) => k.brandId === b.id).reduce((s, k) => s + k.saldo, 0);
+          return { id: b.id, nama: b.nama, kas: Math.round(kas * 100) / 100, ...h };
+        });
+      }
+    }
+
     return NextResponse.json({
+      bulanan,
+      perBrand,
+      rekeningTanpaBrand,
       kartuRekening,
       ringkasan: {
         totalMasuk: Number(agregat._sum.uangMasuk ?? 0),
