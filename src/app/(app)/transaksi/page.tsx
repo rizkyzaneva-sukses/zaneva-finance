@@ -83,7 +83,7 @@ function TransaksiIsi() {
   const [kodeAkun, setKodeAkun] = React.useState<{ id: string; kode: string; nama: string }[]>([]);
 
   const [filterRekening, setFilterRekening] = React.useState<string | null>(null);
-  const [filterKode, setFilterKode] = React.useState<string | null>(null);
+  const [filterKode, setFilterKode] = React.useState<string | null>(params.get("kodeAkunId"));
   const [dari, setDari] = React.useState("");
   const [sampai, setSampai] = React.useState("");
   const [cari, setCari] = React.useState("");

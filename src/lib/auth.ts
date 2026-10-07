@@ -77,4 +77,24 @@ export function bolehKelolaPengguna(role: Role): boolean {
   return role === Role.OWNER;
 }
 
+/** Lihat dashboard alokasi dan saldonya. Kuncinya: persentase & jatah laba hanya untuk ADMIN/OWNER. */
+export function bolehLihatAlokasi(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER;
+}
+
+/** Mengesahkan laba bersih bulanan (tutup buku) dan membatalkannya. Dasar semua pembagian alokasi, jadi hanya OWNER. */
+export function bolehTutupBuku(role: Role): boolean {
+  return role === Role.OWNER;
+}
+
+/** Mengesahkan pembagian jatah alokasi dari laba yang sudah disahkan OWNER. ADMIN = Finance. */
+export function bolehDistribusiAlokasi(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER;
+}
+
+/** Membatalkan distribusi yang sudah disahkan. Sengaja lebih tinggi dari mengesahkan. */
+export function bolehBatalkanDistribusi(role: Role): boolean {
+  return role === Role.OWNER;
+}
+
 export const bolehLihatLog = bolehKelolaPengguna;

@@ -194,6 +194,20 @@ async function ambilEntri(sampai: string, rekeningId: string | null) {
   return entri;
 }
 
+/**
+ * Net (uang masuk − uang keluar) per kode akun sampai tanggal tertentu, rincian
+ * split ikut dihitung. Dipakai untuk saldo alokasi: pemakaian = −net.
+ */
+export async function netPerKodeAkun(sampai: string): Promise<Map<string, number>> {
+  const entri = await ambilEntri(sampai, null);
+  const hasil = new Map<string, Sen>();
+  for (const e of entri) {
+    if (!e.kode) continue;
+    hasil.set(e.kode.id, (hasil.get(e.kode.id) ?? 0) + e.net);
+  }
+  return new Map([...hasil].map(([k, v]) => [k, rp(v)]));
+}
+
 export interface OpsiLaporan {
   dari: string;
   sampai: string;

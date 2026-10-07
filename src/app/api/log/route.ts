@@ -73,6 +73,11 @@ export async function GET(req: Request) {
 
     const hasil = log.map((l) => {
       let label = peta.get(`${l.entitas}:${l.entitasId}`) ?? null;
+      // Pengesahan laba & distribusi tidak punya nama sendiri; periodenya ada di isi log.
+      if (!label && (l.entitas === "PeriodeLaba" || l.entitas === "DistribusiAlokasi")) {
+        const d = (l.dataBaru ?? l.dataLama) as Record<string, unknown> | null;
+        if (d && typeof d.periode === "string") label = `Periode ${d.periode}`;
+      }
       if (!label && l.aksi === "HAPUS" && l.dataLama && typeof l.dataLama === "object") {
         const d = l.dataLama as Record<string, unknown>;
         label = [d.keterangan, d.nama].find((v) => typeof v === "string") as string | undefined ?? null;

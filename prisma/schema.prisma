@@ -96,6 +96,8 @@ model User {
   transaksiDiubah Transaksi[] @relation("TransaksiDiubah")
   transaksiDiAcc  Transaksi[] @relation("TransaksiDiAcc")
   auditLogs       AuditLog[]
+  periodeDisahkan PeriodeLaba[]
+  distribusiAcc   DistribusiAlokasi[]
 }
 
 model Rekening {
@@ -133,6 +135,10 @@ model KodeAkun {
   /// Hanya relevan untuk kelompok ALOKASI. null = tidak dialokasikan dari laba.
   persenAlokasi Decimal? @db.Decimal(5, 2)
 
+  /// Saldo alokasi yang sudah ada sebelum sistem ini dipakai. Titik awal saldo
+  /// alokasi: saldo = saldoAwalAlokasi + Σ distribusi − Σ pemakaian.
+  saldoAwalAlokasi Decimal @default(0) @db.Decimal(18, 2)
+
   /// Kode bawaan sistem (0000 Saldo) — tidak bisa dihapus/dinonaktifkan dari UI.
   sistem Boolean @default(false)
 
@@ -141,8 +147,49 @@ model KodeAkun {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  transaksi Transaksi[]
-  rincian   TransaksiRincian[]
+  transaksi  Transaksi[]
+  rincian    TransaksiRincian[]
+  distribusi DistribusiAlokasi[]
+}
+
+/// Tutup buku bulanan: OWNER mengesahkan laba bersih satu bulan. Angka laba
+/// disimpan sebagai snapshot dan jadi dasar pembagian alokasi.
+model PeriodeLaba {
+  id    String @id @default(cuid())
+  tahun Int
+  bulan Int // 1..12
+
+  /// Laba bersih seluruh rekening pada bulan itu, saat disahkan.
+  labaBersih Decimal @db.Decimal(18, 2)
+
+  disetujuiOlehId String
+  disetujuiOleh   User     @relation(fields: [disetujuiOlehId], references: [id])
+  disetujuiPada   DateTime @default(now())
+
+  distribusi DistribusiAlokasi[]
+
+  @@unique([tahun, bulan])
+}
+
+/// Jatah alokasi satu kode akun dari laba satu periode, disahkan ADMIN (Finance).
+model DistribusiAlokasi {
+  id        String      @id @default(cuid())
+  periodeId String
+  periode   PeriodeLaba @relation(fields: [periodeId], references: [id])
+  kodeAkunId String
+  kodeAkun   KodeAkun   @relation(fields: [kodeAkunId], references: [id])
+
+  /// Persentase pada saat dibagikan — disalin supaya perubahan persen di masa
+  /// depan tidak mengubah riwayat.
+  persen  Decimal @db.Decimal(5, 2)
+  nominal Decimal @db.Decimal(18, 2)
+
+  disetujuiOlehId String
+  disetujuiOleh   User     @relation(fields: [disetujuiOlehId], references: [id])
+  disetujuiPada   DateTime @default(now())
+
+  @@unique([periodeId, kodeAkunId])
+  @@index([kodeAkunId])
 }
 
 model Transaksi {

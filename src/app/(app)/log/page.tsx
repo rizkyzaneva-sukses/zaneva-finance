@@ -30,6 +30,8 @@ const OPSI_ENTITAS = [
   { value: "Transaksi", label: "Transaksi" },
   { value: "KodeAkun", label: "Kode Akun" },
   { value: "Rekening", label: "Rekening" },
+  { value: "PeriodeLaba", label: "Pengesahan Laba" },
+  { value: "DistribusiAlokasi", label: "Distribusi Alokasi" },
 ];
 
 const OPSI_AKSI = [
@@ -54,6 +56,14 @@ const NAMA_FIELD: Record<string, string> = {
   tanggal: "Tanggal",
   uangMasuk: "Uang masuk",
   uangKeluar: "Uang keluar",
+  periode: "Periode",
+  labaBersih: "Laba bersih",
+  labaDasar: "Laba dasar",
+  totalDibagikan: "Total dibagikan",
+  totalPersen: "Total %",
+  jumlahKode: "Jumlah kode",
+  saldoAwalAlokasi: "Saldo awal alokasi",
+  bank: "Jenis rekening",
 };
 
 const waktu = (iso: string) =>

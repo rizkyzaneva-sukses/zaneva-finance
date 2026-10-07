@@ -37,6 +37,21 @@ export async function PATCH(req: Request, { params }: Params) {
       if (!persen.ok) return NextResponse.json({ error: persen.error }, { status: 400 });
       data.persenAlokasi = persen.nilai;
     }
+    if ("saldoAwalAlokasi" in body) {
+      let nilai: Prisma.Decimal;
+      try {
+        nilai = new Prisma.Decimal(String(body.saldoAwalAlokasi ?? "0") || "0");
+      } catch {
+        return NextResponse.json({ error: "Saldo awal alokasi harus berupa angka" }, { status: 400 });
+      }
+      if (!nilai.isFinite() || nilai.decimalPlaces() > 2) {
+        return NextResponse.json(
+          { error: "Saldo awal alokasi harus angka, maksimal 2 angka di belakang koma" },
+          { status: 400 }
+        );
+      }
+      data.saldoAwalAlokasi = nilai;
+    }
     if (typeof body.aktif === "boolean") {
       if (lama.sistem && !body.aktif) {
         return NextResponse.json(
@@ -59,6 +74,8 @@ export async function PATCH(req: Request, { params }: Params) {
           nama: lama.nama,
           laporan: lama.laporan,
           aktivitasKas: lama.aktivitasKas,
+          persenAlokasi: lama.persenAlokasi?.toString() ?? null,
+          saldoAwalAlokasi: lama.saldoAwalAlokasi.toFixed(2),
           aktif: lama.aktif,
         },
         dataBaru: {
@@ -66,6 +83,8 @@ export async function PATCH(req: Request, { params }: Params) {
           nama: kodeAkun.nama,
           laporan: kodeAkun.laporan,
           aktivitasKas: kodeAkun.aktivitasKas,
+          persenAlokasi: kodeAkun.persenAlokasi?.toString() ?? null,
+          saldoAwalAlokasi: kodeAkun.saldoAwalAlokasi.toFixed(2),
           aktif: kodeAkun.aktif,
         },
       },
