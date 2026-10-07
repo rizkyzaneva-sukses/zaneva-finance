@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput, bolehKelola } from "@/lib/auth";
+import { bolehKelola } from "@/lib/auth";
+import { bolehAksesRekening, dataAccUntukPerubahan } from "@/lib/acc";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
@@ -8,21 +9,34 @@ import { hitungUlangSaldo } from "@/lib/rekap";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Koreksi kode akun & catatan. Nominal/tanggal sengaja tidak bisa diubah di sini. */
+/**
+ * Koreksi kode akun & catatan. Nominal/tanggal sengaja tidak bisa diubah di sini.
+ * Perubahan oleh STAFF/BENDAHARA menandai transaksi "menunggu ACC".
+ */
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin();
   if (!auth.ok) return auth.response;
 
   try {
     const { id } = await params;
     const lama = await prisma.transaksi.findUnique({
       where: { id },
-      include: { kodeAkun: { select: { kode: true } }, _count: { select: { rincian: true } } },
+      include: {
+        kodeAkun: { select: { kode: true } },
+        rekening: { select: { bank: true } },
+        _count: { select: { rincian: true } },
+      },
     });
     if (!lama) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
+    if (!bolehAksesRekening(auth.user.role, lama.rekening.bank)) {
+      return NextResponse.json({ error: "Akses ditolak untuk rekening ini" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}));
-    const data: Prisma.TransaksiUpdateInput = { updatedBy: { connect: { id: auth.user.id } } };
+    const data: Prisma.TransaksiUpdateInput = {
+      updatedBy: { connect: { id: auth.user.id } },
+      ...dataAccUntukPerubahan(auth.user),
+    };
 
     if ("kodeAkunId" in body && lama._count.rincian > 0) {
       return NextResponse.json(
@@ -52,11 +66,17 @@ export async function PATCH(req: Request, { params }: Params) {
         entitas: "Transaksi",
         entitasId: id,
         aksi: AksiAudit.UBAH,
-        dataLama: { kode: lama.kodeAkun?.kode ?? null, catatan: lama.catatan, statusKode: lama.statusKode },
+        dataLama: {
+          kode: lama.kodeAkun?.kode ?? null,
+          catatan: lama.catatan,
+          statusKode: lama.statusKode,
+          statusAcc: lama.statusAcc,
+        },
         dataBaru: {
           kode: transaksi.kodeAkun?.kode ?? null,
           catatan: transaksi.catatan,
           statusKode: transaksi.statusKode,
+          statusAcc: transaksi.statusAcc,
         },
       },
     });

@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput } from "@/lib/auth";
+import { statusAccUntuk } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { StatusKode, Sumber } from "@/generated/prisma/enums";
+import { Bank, Role, StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 
@@ -13,7 +13,12 @@ export async function GET(req: Request) {
 
   try {
     const sp = new URL(req.url).searchParams;
-    const where = filterDariQuery(sp);
+    const filter = filterDariQuery(sp);
+    // BENDAHARA hanya melihat transaksi kas tunai (petty cash), bukan rekening bank.
+    const where: Prisma.TransaksiWhereInput =
+      auth.user.role === Role.BENDAHARA
+        ? { AND: [filter, { rekening: { bank: Bank.PETTY_CASH } }] }
+        : filter;
     const halaman = Math.max(1, Number(sp.get("halaman")) || 1);
     const perHalaman = Math.min(200, Math.max(10, Number(sp.get("perHalaman")) || 50));
 
@@ -32,6 +37,7 @@ export async function GET(req: Request) {
           },
           createdBy: { select: { nama: true } },
           updatedBy: { select: { nama: true } },
+          accOleh: { select: { nama: true } },
         },
       }),
       prisma.transaksi.count({ where }),
@@ -45,7 +51,7 @@ export async function GET(req: Request) {
 
 /** Tambah satu transaksi manual — untuk penyesuaian yang tidak ada di mutasi bank. */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin();
   if (!auth.ok) return auth.response;
 
   try {
@@ -72,6 +78,17 @@ export async function POST(req: Request) {
       );
     }
 
+    const rekening = await prisma.rekening.findUnique({ where: { id: rekeningId } });
+    if (!rekening || !rekening.aktif) {
+      return NextResponse.json({ error: "Rekening tidak ditemukan atau nonaktif" }, { status: 404 });
+    }
+    if (auth.user.role === Role.BENDAHARA && rekening.bank !== Bank.PETTY_CASH) {
+      return NextResponse.json(
+        { error: "Bendahara hanya boleh menginput ke rekening petty cash" },
+        { status: 403 }
+      );
+    }
+
     const transaksi = await prisma.$transaction(async (tx) => {
       const dibuat = await tx.transaksi.create({
         data: {
@@ -87,6 +104,7 @@ export async function POST(req: Request) {
           statusKode: body.kodeAkunId ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           sumber: Sumber.MANUAL,
           dedupeHash: buatDedupeHash({ tanggalIso, uangMasuk, uangKeluar, keterangan }),
+          statusAcc: statusAccUntuk(auth.user.role),
           createdById: auth.user.id,
         },
       });

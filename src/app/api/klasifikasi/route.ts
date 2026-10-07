@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput } from "@/lib/auth";
+import { bolehRekap } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { sarankanKodeAkun } from "@/lib/openrouter";
 
@@ -10,7 +10,7 @@ interface BodyMasuk {
 
 /** Tahap 2: sarankan kode akun untuk baris hasil parsing. Teks saja, tanpa gambar. */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin(bolehRekap);
   if (!auth.ok) return auth.response;
 
   try {

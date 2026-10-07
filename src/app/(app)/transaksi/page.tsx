@@ -2,7 +2,17 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { Download, Trash2, AlertTriangle, Search, Scissors } from "lucide-react";
+import {
+  Download,
+  Trash2,
+  AlertTriangle,
+  Search,
+  Scissors,
+  Plus,
+  Check,
+  CheckCheck,
+  Clock,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   Badge,
@@ -10,13 +20,15 @@ import {
   Card,
   ConfirmDialog,
   EmptyState,
+  Field,
   INPUT_CLASS,
+  Modal,
   PageHeader,
   Skeleton,
 } from "@/components/ui/primitives";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { SplitEditor, type RincianForm } from "@/components/split-editor";
-import { cn, formatAngka, formatTanggal } from "@/lib/utils";
+import { cn, formatAngka, formatTanggal, labelBank } from "@/lib/utils";
 
 interface Transaksi {
   id: string;
@@ -28,6 +40,8 @@ interface Transaksi {
   saldoBank: string | null;
   catatan: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
+  statusAcc: "DISETUJUI" | "MENUNGGU";
+  accOleh: { nama: string } | null;
   yakin: boolean;
   rekening: { id: string; nama: string };
   kodeAkun: { id: string; kode: string; nama: string } | null;
@@ -40,6 +54,22 @@ interface Transaksi {
   createdBy: { nama: string } | null;
   updatedBy: { nama: string } | null;
 }
+
+interface FormManual {
+  rekeningId: string | null;
+  tanggalIso: string;
+  keterangan: string;
+  arah: "masuk" | "keluar";
+  nominal: string;
+  kodeAkunId: string | null;
+  catatan: string;
+}
+
+/** Tanggal lokal (WIB), bukan toISOString yang UTC — sebelum jam 07.00 WIB itu masih "kemarin". */
+const hariIniIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 
 function TransaksiIsi() {
   const params = useSearchParams();
@@ -58,6 +88,16 @@ function TransaksiIsi() {
   const [sampai, setSampai] = React.useState("");
   const [cari, setCari] = React.useState("");
   const [belumBeres, setBelumBeres] = React.useState(params.get("belumBeres") === "1");
+  const [menungguAcc, setMenungguAcc] = React.useState(params.get("menungguAcc") === "1");
+
+  const [role, setRole] = React.useState<string | null>(null);
+  const [menyetujui, setMenyetujui] = React.useState(false);
+  const [formManual, setFormManual] = React.useState<FormManual | null>(null);
+  const [menyimpanManual, setMenyimpanManual] = React.useState(false);
+
+  const bolehAcc = role === "ADMIN" || role === "OWNER";
+  const bolehHapus = role === "ADMIN" || role === "OWNER";
+  const bolehExport = role !== null && role !== "BENDAHARA";
 
   const [hapusTarget, setHapusTarget] = React.useState<Transaksi | null>(null);
   const [menghapus, setMenghapus] = React.useState(false);
@@ -74,8 +114,9 @@ function TransaksiIsi() {
     if (sampai) q.set("sampai", sampai);
     if (cari) q.set("cari", cari);
     if (belumBeres) q.set("belumBeres", "1");
+    if (menungguAcc) q.set("menungguAcc", "1");
     return q;
-  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres]);
+  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, menungguAcc]);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -101,15 +142,24 @@ function TransaksiIsi() {
 
   React.useEffect(() => {
     (async () => {
-      const [r1, r2] = await Promise.all([fetch("/api/rekening"), fetch("/api/kode-akun?aktif=1")]);
-      const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+      const [r1, r2, r3] = await Promise.all([
+        fetch("/api/rekening"),
+        fetch("/api/kode-akun?aktif=1"),
+        fetch("/api/auth/me"),
+      ]);
+      const [d1, d2, d3] = await Promise.all([r1.json(), r2.json(), r3.json()]);
       if (r1.ok)
-        setRekening(d1.rekening.map((r: { id: string; nama: string; bank: string }) => ({
-          value: r.id,
-          label: r.nama,
-          hint: r.bank,
-        })));
+        setRekening(
+          d1.rekening
+            .filter((r: { aktif: boolean }) => r.aktif)
+            .map((r: { id: string; nama: string; bank: string }) => ({
+              value: r.id,
+              label: r.nama,
+              hint: labelBank(r.bank),
+            }))
+        );
       if (r2.ok) setKodeAkun(d2.kodeAkun);
+      if (r3.ok) setRole(d3.user.role);
     })();
   }, []);
 
@@ -135,13 +185,81 @@ function TransaksiIsi() {
                 kodeAkun: data.transaksi.kodeAkun,
                 catatan: data.transaksi.catatan,
                 statusKode: data.transaksi.statusKode,
+                statusAcc: data.transaksi.statusAcc,
+                accOleh: null,
               }
             : t
         )
       );
+      if (data.transaksi.statusAcc === "MENUNGGU") {
+        toast.info("Perubahan tersimpan, menunggu ACC Finance");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
       muat();
+    }
+  }
+
+  async function setujui(ids: string[]) {
+    if (ids.length === 0) return;
+    setMenyetujui(true);
+    try {
+      const res = await fetch("/api/transaksi/acc", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(`${data.disahkan} transaksi disahkan`);
+      muat();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengesahkan");
+    } finally {
+      setMenyetujui(false);
+    }
+  }
+
+  async function simpanManual(e: React.FormEvent) {
+    e.preventDefault();
+    if (!formManual) return;
+    if (!formManual.rekeningId) {
+      toast.error("Pilih rekening dulu");
+      return;
+    }
+    const nominal = Number(formManual.nominal);
+    if (!Number.isFinite(nominal) || nominal <= 0) {
+      toast.error("Nominal harus lebih dari 0");
+      return;
+    }
+    setMenyimpanManual(true);
+    try {
+      const res = await fetch("/api/transaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rekeningId: formManual.rekeningId,
+          tanggalIso: formManual.tanggalIso,
+          keterangan: formManual.keterangan,
+          uangMasuk: formManual.arah === "masuk" ? nominal : 0,
+          uangKeluar: formManual.arah === "keluar" ? nominal : 0,
+          kodeAkunId: formManual.kodeAkunId,
+          catatan: formManual.catatan,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(
+        data.transaksi.statusAcc === "MENUNGGU"
+          ? "Transaksi tersimpan, menunggu ACC Finance"
+          : "Transaksi tersimpan"
+      );
+      setFormManual(null);
+      muat();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan transaksi");
+    } finally {
+      setMenyimpanManual(false);
     }
   }
 
@@ -199,10 +317,30 @@ function TransaksiIsi() {
         judul="Transaksi"
         deskripsi="Seluruh rekap yang tersimpan. Kode akun dan catatan bisa dikoreksi langsung di tabel."
         aksi={
-          <Button varian="sekunder" onClick={exportExcel}>
-            <Download className="h-4 w-4" />
-            Export Excel
-          </Button>
+          <>
+            <Button
+              onClick={() =>
+                setFormManual({
+                  rekeningId: rekening.length === 1 ? rekening[0].value : null,
+                  tanggalIso: hariIniIso(),
+                  keterangan: "",
+                  arah: "keluar",
+                  nominal: "",
+                  kodeAkunId: null,
+                  catatan: "",
+                })
+              }
+            >
+              <Plus className="h-4 w-4" />
+              Tambah Transaksi
+            </Button>
+            {bolehExport && (
+              <Button varian="sekunder" onClick={exportExcel}>
+                <Download className="h-4 w-4" />
+                Export Excel
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -289,6 +427,18 @@ function TransaksiIsi() {
             />
             Hanya yang belum beres
           </label>
+          <label className="flex items-center gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={menungguAcc}
+              onChange={(e) => {
+                setMenungguAcc(e.target.checked);
+                setHalaman(1);
+              }}
+              className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+            />
+            Hanya yang menunggu ACC
+          </label>
         </div>
       </Card>
 
@@ -299,8 +449,22 @@ function TransaksiIsi() {
           <EmptyState pesan="Belum ada transaksi yang cocok dengan filter ini." />
         ) : (
           <>
-            <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
-              {total} transaksi · halaman {halaman} dari {totalHalaman}
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {total} transaksi · halaman {halaman} dari {totalHalaman}
+              </span>
+              {bolehAcc && daftar.some((t) => t.statusAcc === "MENUNGGU") && (
+                <Button
+                  varian="sekunder"
+                  loading={menyetujui}
+                  onClick={() =>
+                    setujui(daftar.filter((t) => t.statusAcc === "MENUNGGU").map((t) => t.id))
+                  }
+                >
+                  <CheckCheck className="h-4 w-4" />
+                  Setujui {daftar.filter((t) => t.statusAcc === "MENUNGGU").length} di halaman ini
+                </Button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -330,6 +494,17 @@ function TransaksiIsi() {
                           >
                             <AlertTriangle className="h-3.5 w-3.5" />
                           </span>
+                        )}
+                        {t.statusAcc === "MENUNGGU" && (
+                          <div
+                            className="mt-1"
+                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, belum disahkan Finance`}
+                          >
+                            <Badge warna="biru">
+                              <Clock className="mr-1 inline h-3 w-3" />
+                              Menunggu ACC
+                            </Badge>
+                          </div>
                         )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
@@ -391,6 +566,18 @@ function TransaksiIsi() {
                         />
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">
+                        {bolehAcc && t.statusAcc === "MENUNGGU" && (
+                          <button
+                            type="button"
+                            title="Setujui (ACC)"
+                            aria-label="Setujui transaksi ini"
+                            disabled={menyetujui}
+                            onClick={() => setujui([t.id])}
+                            className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-900/30"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                        )}
                         <button
                           type="button"
                           title={t.rincian.length > 0 ? "Ubah split" : "Split transaksi ini"}
@@ -405,14 +592,16 @@ function TransaksiIsi() {
                         >
                           <Scissors className="h-4 w-4" />
                         </button>
-                        <button
-                          type="button"
-                          aria-label="Hapus transaksi"
-                          onClick={() => setHapusTarget(t)}
-                          className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {bolehHapus && (
+                          <button
+                            type="button"
+                            aria-label="Hapus transaksi"
+                            onClick={() => setHapusTarget(t)}
+                            className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                     {t.rincian.map((r) => {
@@ -469,6 +658,130 @@ function TransaksiIsi() {
           </>
         )}
       </Card>
+
+      <Modal
+        buka={formManual !== null}
+        judul="Tambah Transaksi Manual"
+        deskripsi={
+          role === "STAFF" || role === "BENDAHARA"
+            ? "Transaksi akan berstatus Menunggu ACC sampai disahkan Finance."
+            : "Untuk transaksi yang tidak ada di mutasi bank, mis. kas tunai atau penyesuaian."
+        }
+        onTutup={() => setFormManual(null)}
+      >
+        {formManual && (
+          <form onSubmit={simpanManual} className="grid gap-4 sm:grid-cols-2">
+            <SearchableSelect
+              label="Rekening"
+              required
+              value={formManual.rekeningId}
+              onChange={(v) => setFormManual({ ...formManual, rekeningId: v })}
+              options={rekening}
+              placeholder="Pilih rekening"
+              emptyText="Belum ada rekening"
+            />
+            <Field label="Tanggal" required>
+              <input
+                type="date"
+                required
+                value={formManual.tanggalIso}
+                onChange={(e) => setFormManual({ ...formManual, tanggalIso: e.target.value })}
+                className={INPUT_CLASS}
+              />
+            </Field>
+
+            <div className="sm:col-span-2">
+              <Field label="Keterangan" required>
+                <input
+                  required
+                  value={formManual.keterangan}
+                  onChange={(e) => setFormManual({ ...formManual, keterangan: e.target.value })}
+                  placeholder="mis. Beli ATK gudang"
+                  className={INPUT_CLASS}
+                />
+              </Field>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Arah uang
+              </label>
+              <div
+                role="radiogroup"
+                aria-label="Arah uang"
+                className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
+              >
+                {(
+                  [
+                    { key: "keluar", label: "Uang keluar" },
+                    { key: "masuk", label: "Uang masuk" },
+                  ] as const
+                ).map((o) => (
+                  <button
+                    key={o.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={formManual.arah === o.key}
+                    onClick={() => setFormManual({ ...formManual, arah: o.key })}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      formManual.arah === o.key
+                        ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
+                        : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Field label="Nominal" required>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0.01"
+                required
+                value={formManual.nominal}
+                onChange={(e) => setFormManual({ ...formManual, nominal: e.target.value })}
+                placeholder="0"
+                className={`${INPUT_CLASS} tabular-nums`}
+              />
+            </Field>
+
+            <div className="sm:col-span-2">
+              <SearchableSelect
+                label="Kode akun"
+                value={formManual.kodeAkunId}
+                onChange={(v) => setFormManual({ ...formManual, kodeAkunId: v })}
+                options={opsiKode}
+                placeholder="Pilih kode (boleh dikosongkan dulu)"
+                searchPlaceholder="Cari kode atau nama..."
+                emptyText="Kode tidak ditemukan"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Catatan">
+                <input
+                  value={formManual.catatan}
+                  onChange={(e) => setFormManual({ ...formManual, catatan: e.target.value })}
+                  placeholder="Opsional"
+                  className={INPUT_CLASS}
+                />
+              </Field>
+            </div>
+
+            <div className="flex justify-end gap-2 sm:col-span-2">
+              <Button type="button" varian="sekunder" onClick={() => setFormManual(null)}>
+                Batal
+              </Button>
+              <Button type="submit" loading={menyimpanManual}>
+                Simpan
+              </Button>
+            </div>
+          </form>
+        )}
+      </Modal>
 
       {splitTarget && (
         <SplitEditor

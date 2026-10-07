@@ -301,15 +301,34 @@ function Neraca({ d }: { d: HasilLaporan["neraca"] }) {
             <Judul>Aset</Judul>
             <tr>
               <td colSpan={3} className="pt-1 text-xs font-medium text-gray-700 dark:text-gray-300">
-                Kas dan bank
+                Kas di bank
               </td>
             </tr>
-            {d.kas.length ? (
-              d.kas.map((k) => <Garis key={k.rekeningId} nama={k.nama} nilai={k.saldo} />)
+            {d.kas.filter((k) => k.jenis === "BANK").length ? (
+              d.kas
+                .filter((k) => k.jenis === "BANK")
+                .map((k) => <Garis key={k.rekeningId} nama={k.nama} nilai={k.saldo} />)
             ) : (
               <Kosong />
             )}
-            <Total label="Total Kas dan Bank" nilai={d.totalKas} />
+            <Total label="Total Kas di Bank" nilai={d.totalBank} />
+
+            {d.kas.some((k) => k.jenis === "PETTY_CASH") && (
+              <>
+                <tr>
+                  <td colSpan={3} className="pt-4 text-xs font-medium text-gray-700 dark:text-gray-300">
+                    Petty cash (kas tunai)
+                  </td>
+                </tr>
+                {d.kas
+                  .filter((k) => k.jenis === "PETTY_CASH")
+                  .map((k) => (
+                    <Garis key={k.rekeningId} nama={k.nama} nilai={k.saldo} />
+                  ))}
+                <Total label="Total Petty Cash" nilai={d.totalPettyCash} />
+              </>
+            )}
+            <Total label="Total Kas dan Setara Kas" nilai={d.totalKas} />
 
             <tr>
               <td colSpan={3} className="pt-4 text-xs font-medium text-gray-700 dark:text-gray-300">
@@ -621,6 +640,20 @@ export default function LaporanPage() {
             </div>
 
             <Pemeriksaan p={data.pemeriksaan} />
+
+            {data.menungguAcc > 0 && (
+              <div className="mb-4 flex items-start gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+                <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <strong>{data.menungguAcc} transaksi pada periode ini belum di-ACC.</strong>{" "}
+                  Transaksinya tetap dihitung di laporan karena uangnya sudah berpindah, tapi kode
+                  akunnya belum disahkan sehingga rincian per akun bisa berubah.{" "}
+                  <Link href="/transaksi?menungguAcc=1" className="font-medium underline">
+                    Lihat daftar
+                  </Link>
+                </span>
+              </div>
+            )}
 
             {tab === "neraca" || adaTransaksi ? (
               <>

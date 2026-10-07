@@ -28,10 +28,10 @@ interface Pengguna {
 }
 
 const OPSI_ROLE = [
-  { value: "OWNER", label: "OWNER", hint: "Akses penuh termasuk kelola pengguna" },
-  { value: "ADMIN", label: "ADMIN", hint: "Kelola master data, hapus transaksi" },
-  { value: "STAFF", label: "STAFF", hint: "Input & koreksi, tidak bisa hapus" },
-  { value: "VIEWER", label: "VIEWER", hint: "Hanya melihat & export" },
+  { value: "OWNER", label: "OWNER", hint: "Akses penuh, kelola pengguna, lihat Log" },
+  { value: "ADMIN", label: "ADMIN (Finance)", hint: "Semua kecuali kelola pengguna; meng-ACC pekerjaan STAFF & Bendahara" },
+  { value: "STAFF", label: "STAFF", hint: "Rekap & koreksi (menunggu ACC), tanpa hapus" },
+  { value: "BENDAHARA", label: "BENDAHARA", hint: "Input manual kas tunai (petty cash) saja, menunggu ACC" },
 ];
 
 interface FormState {

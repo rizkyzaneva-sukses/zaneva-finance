@@ -29,6 +29,8 @@ export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput
     });
   }
 
+  if (sp.get("menungguAcc") === "1") where.statusAcc = "MENUNGGU";
+
   const dari = sp.get("dari");
   const sampai = sp.get("sampai");
   if (dari || sampai) {

@@ -65,11 +65,19 @@ export async function DELETE(_req: Request, { params }: Params) {
       return NextResponse.json({ error: "Tidak bisa menghapus akun sendiri" }, { status: 409 });
     }
 
-    const jumlah = await prisma.transaksi.count({ where: { createdById: id } });
-    if (jumlah > 0) {
+    // Sekecil apa pun jejaknya, user yang pernah beraktivitas tidak boleh dihapus:
+    // menghapusnya memutus atribusi di Log Aktivitas dan di transaksi, padahal
+    // itulah gunanya log — menjawab "siapa yang mengubah ini".
+    const [dibuat, diubah, diacc, aktivitas] = await Promise.all([
+      prisma.transaksi.count({ where: { createdById: id } }),
+      prisma.transaksi.count({ where: { updatedById: id } }),
+      prisma.transaksi.count({ where: { accOlehId: id } }),
+      prisma.auditLog.count({ where: { userId: id } }),
+    ]);
+    if (dibuat + diubah + diacc + aktivitas > 0) {
       return NextResponse.json(
         {
-          error: `Pengguna ini tercatat menginput ${jumlah} transaksi, jadi tidak bisa dihapus. Nonaktifkan saja supaya jejak inputnya tetap utuh.`,
+          error: `Pengguna ini punya jejak aktivitas (${aktivitas} entri log, ${dibuat} transaksi dibuat), jadi tidak bisa dihapus. Nonaktifkan saja supaya jejaknya tetap utuh.`,
         },
         { status: 409 }
       );

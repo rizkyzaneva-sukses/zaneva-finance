@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
+import { bolehLihatLaporan } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildRekapWorkbook, type BarisRekapExcel } from "@/lib/excel";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { formatAngka, tanggalKeIso } from "@/lib/utils";
 
 export async function GET(req: Request) {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(bolehLihatLaporan);
   if (!auth.ok) return auth.response;
 
   try {

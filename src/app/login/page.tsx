@@ -32,7 +32,11 @@ function LoginForm() {
         return;
       }
       toast.success(`Selamat datang, ${data.nama}`);
-      router.push(params.get("return_to") || "/dashboard");
+      // return_to datang dari URL, jadi tidak boleh dipercaya begitu saja: hanya jalur
+      // internal yang diterima. "//evil.com" dan "https://..." akan mengalihkan keluar situs.
+      const tujuan = params.get("return_to") ?? "";
+      const aman = tujuan.startsWith("/") && !tujuan.startsWith("//") && !tujuan.startsWith("/\\");
+      router.push(aman ? tujuan : "/dashboard");
       router.refresh();
     } catch {
       toast.error("Gagal menghubungi server");

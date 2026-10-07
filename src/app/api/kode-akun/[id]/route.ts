@@ -107,7 +107,13 @@ export async function DELETE(_req: Request, { params }: Params) {
 
     await prisma.kodeAkun.delete({ where: { id } });
     await prisma.auditLog.create({
-      data: { userId: auth.user.id, entitas: "KodeAkun", entitasId: id, aksi: AksiAudit.HAPUS },
+      data: {
+        userId: auth.user.id,
+        entitas: "KodeAkun",
+        entitasId: id,
+        aksi: AksiAudit.HAPUS,
+        dataLama: { kode: kode.kode, nama: kode.nama, kelompok: kode.kelompok },
+      },
     });
 
     return NextResponse.json({ ok: true });

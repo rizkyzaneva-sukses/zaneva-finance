@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
+import { bolehLihatLaporan } from "@/lib/auth";
 import { hitungLaporan } from "@/lib/laporan";
 
 const FORMAT_TANGGAL = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Laba Rugi, Neraca, Arus Kas, dan Perubahan Modal sekaligus — dihitung dari entri yang sama. */
 export async function GET(req: Request) {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(bolehLihatLaporan);
   if (!auth.ok) return auth.response;
 
   try {

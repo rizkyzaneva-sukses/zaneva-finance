@@ -22,8 +22,12 @@ export function proxy(req: NextRequest) {
       return NextResponse.json({ error: "Belum login", type: "auth_required" }, { status: 401 });
     }
     const url = req.nextUrl.clone();
+    // Simpan tujuan lengkap beserta filternya, dan bersihkan query lama supaya
+    // URL login tidak membawa parameter halaman asal.
+    const tujuan = pathname + req.nextUrl.search;
     url.pathname = "/login";
-    url.searchParams.set("return_to", pathname);
+    url.search = "";
+    url.searchParams.set("return_to", tujuan);
     return NextResponse.redirect(url);
   }
 

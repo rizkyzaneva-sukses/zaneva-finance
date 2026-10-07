@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput } from "@/lib/auth";
+import { bolehAksesRekening, dataAccUntukPerubahan } from "@/lib/acc";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
@@ -14,16 +14,19 @@ type Params = { params: Promise<{ id: string }> };
  * Nominal & saldo transaksi induk tidak berubah, jadi saldo berjalan tidak perlu dihitung ulang.
  */
 export async function PUT(req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin();
   if (!auth.ok) return auth.response;
 
   try {
     const { id } = await params;
     const induk = await prisma.transaksi.findUnique({
       where: { id },
-      include: { rincian: { orderBy: { urutan: "asc" } } },
+      include: { rincian: { orderBy: { urutan: "asc" } }, rekening: { select: { bank: true } } },
     });
     if (!induk) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
+    if (!bolehAksesRekening(auth.user.role, induk.rekening.bank)) {
+      return NextResponse.json({ error: "Akses ditolak untuk rekening ini" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}));
     const masuk = Array.isArray(body.rincian) ? body.rincian : null;
@@ -63,6 +66,7 @@ export async function PUT(req: Request, { params }: Params) {
           kodeAkun: { disconnect: true },
           statusKode: rincianBaru.length > 0 ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           updatedBy: { connect: { id: auth.user.id } },
+          ...dataAccUntukPerubahan(auth.user),
         },
       });
 

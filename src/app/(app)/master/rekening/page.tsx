@@ -16,7 +16,7 @@ import {
   Badge,
 } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { formatRupiah, formatTanggal, tanggalKeIso } from "@/lib/utils";
+import { formatRupiah, formatTanggal, labelBank, tanggalKeIso } from "@/lib/utils";
 
 interface Rekening {
   id: string;
@@ -35,6 +35,7 @@ const BANK_OPTIONS = [
   { value: "MANDIRI", label: "Mandiri" },
   { value: "BRI", label: "BRI" },
   { value: "BNI", label: "BNI" },
+  { value: "PETTY_CASH", label: "Petty Cash (kas tunai)", hint: "Bukan bank; input manual oleh bendahara" },
   { value: "LAINNYA", label: "Lainnya" },
 ];
 
@@ -271,7 +272,9 @@ export default function RekeningPage() {
                     <td className="whitespace-nowrap px-2 py-2 font-medium text-gray-900 dark:text-gray-50">
                       {r.nama}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">{r.bank}</td>
+                    <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
+                      {r.bank === "PETTY_CASH" ? <Badge warna="kuning">Petty Cash</Badge> : labelBank(r.bank)}
+                    </td>
                     <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
                       {r.nomorRekening || "—"}
                     </td>

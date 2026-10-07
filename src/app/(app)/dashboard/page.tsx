@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, INPUT_CLASS } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { CashFlowChart, type TitikBulan } from "@/components/cash-flow-chart";
-import { cn, formatRupiah, formatTanggal } from "@/lib/utils";
+import { cn, formatRupiah, formatTanggal, labelBank } from "@/lib/utils";
 
 interface KartuRekening {
   id: string;
@@ -34,6 +34,7 @@ interface DataDashboard {
   perBulan: TitikBulan[];
   breakdown: BarisBreakdown[];
   belumBeres: number;
+  menungguAcc: number;
 }
 
 function StatTile({
@@ -98,7 +99,7 @@ export default function DashboardPage() {
   }, [muat]);
 
   const opsiRekening = React.useMemo(
-    () => (data?.kartuRekening ?? []).map((r) => ({ value: r.id, label: r.nama, hint: r.bank })),
+    () => (data?.kartuRekening ?? []).map((r) => ({ value: r.id, label: r.nama, hint: labelBank(r.bank) })),
     [data]
   );
 
@@ -171,6 +172,19 @@ export default function DashboardPage() {
             />
           </div>
 
+          {data.menungguAcc > 0 && (
+            <Link
+              href="/transaksi?menungguAcc=1"
+              className="flex items-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900 transition-colors hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50"
+            >
+              <ListChecks className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>{data.menungguAcc} transaksi menunggu ACC</strong> — hasil kerja STAFF atau
+                Bendahara yang belum disahkan. Transaksinya tetap dihitung di laporan.
+              </span>
+            </Link>
+          )}
+
           {data.belumBeres > 0 && (
             <Link
               href="/transaksi?belumBeres=1"
@@ -201,7 +215,7 @@ export default function DashboardPage() {
                         <div className="truncate font-medium text-gray-900 dark:text-gray-50">
                           {r.nama}
                         </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400">{r.bank}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">{labelBank(r.bank)}</div>
                       </div>
                       {r.perluCek && (
                         <span title="Saldo hitungan sistem beda dengan saldo di mutasi bank">

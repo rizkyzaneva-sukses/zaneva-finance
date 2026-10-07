@@ -11,7 +11,9 @@ enum Role {
   OWNER
   ADMIN
   STAFF
-  VIEWER
+  /// Pegangan petty cash (mis. gudang) — input manual untuk rekening kas yang
+  /// di-assign, butuh ACC ADMIN/OWNER sebelum dianggap final.
+  BENDAHARA
 }
 
 enum Bank {
@@ -19,7 +21,21 @@ enum Bank {
   MANDIRI
   BRI
   BNI
+  /// Kas tunai (petty cash) — bukan rekening bank, tapi diperlakukan sama:
+  /// punya saldo berjalan, masuk Kas & Bank di Neraca dan Arus Kas. Bisa lebih
+  /// dari satu (mis. Kas Gudang, Kas Office).
+  PETTY_CASH
   LAINNYA
+}
+
+enum StatusAcc {
+  /// Dibuat/diubah oleh ADMIN atau OWNER — langsung final, tidak perlu ACC.
+  DISETUJUI
+  /// Dibuat/diubah oleh STAFF atau BENDAHARA — perlu dikonfirmasi ADMIN/OWNER.
+  /// Transaksi tetap dihitung di laporan selama menunggu — uangnya sudah
+  /// benar-benar berpindah di bank, yang menunggu adalah pengesahan
+  /// pencatatannya, bukan keberadaan transaksinya.
+  MENUNGGU
 }
 
 enum Kelompok {
@@ -78,6 +94,7 @@ model User {
 
   transaksiDibuat Transaksi[] @relation("TransaksiDibuat")
   transaksiDiubah Transaksi[] @relation("TransaksiDiubah")
+  transaksiDiAcc  Transaksi[] @relation("TransaksiDiAcc")
   auditLogs       AuditLog[]
 }
 
@@ -156,6 +173,12 @@ model Transaksi {
   yakin      Boolean    @default(true)
   dedupeHash String
 
+  /// ACC pencatatan oleh ADMIN/OWNER. Lihat komentar enum StatusAcc.
+  statusAcc  StatusAcc @default(DISETUJUI)
+  accOlehId  String?
+  accOleh    User?     @relation("TransaksiDiAcc", fields: [accOlehId], references: [id])
+  accPada    DateTime?
+
   createdById String?
   createdBy   User?    @relation("TransaksiDibuat", fields: [createdById], references: [id])
   updatedById String?
@@ -172,6 +195,7 @@ model Transaksi {
   @@index([rekeningId, tanggal, urutanInput])
   @@index([kodeAkunId])
   @@index([statusKode])
+  @@index([statusAcc])
 }
 
 model TransaksiRincian {

@@ -201,14 +201,27 @@ export interface OpsiLaporan {
 }
 
 export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
-  const [entri, rekeningList, kasTersimpanSen] = await Promise.all([
+  const [entri, rekeningList, kasTersimpanSen, menungguAcc] = await Promise.all([
     ambilEntri(sampai, rekeningId),
     prisma.rekening.findMany({
       where: rekeningId ? { id: rekeningId } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
-      select: { id: true, nama: true, saldoAwal: true },
+      select: { id: true, nama: true, saldoAwal: true, bank: true },
     }),
     kasTersimpan(sampai, rekeningId),
+    // Transaksi menunggu ACC TETAP dihitung di laporan: uangnya sudah berpindah
+    // di rekening, yang menunggu hanya pengesahan pencatatannya. Jumlahnya
+    // ditampilkan supaya pembaca tahu bagian mana yang belum final.
+    prisma.transaksi.count({
+      where: {
+        statusAcc: "MENUNGGU",
+        tanggal: {
+          gte: new Date(`${dari}T00:00:00.000Z`),
+          lte: new Date(`${sampai}T00:00:00.000Z`),
+        },
+        ...(rekeningId ? { rekeningId } : {}),
+      },
+    }),
   ]);
 
   const saldoAwalSen = rekeningList.reduce((s, r) => s + sen(r.saldoAwal), 0);
@@ -247,6 +260,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
   const kas = rekeningList.map((r) => ({
     rekeningId: r.id,
     nama: r.nama,
+    // Petty cash dipisah sebagai kelompok sendiri di Neraca, tapi tetap kas.
+    jenis: r.bank === "PETTY_CASH" ? ("PETTY_CASH" as const) : ("BANK" as const),
     saldo: rp(sen(r.saldoAwal) + (netPerRekening.get(r.id) ?? 0)),
   }));
 
@@ -276,6 +291,10 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     .reduce((s, e) => s + e.net, 0);
 
   const totalKas = jumlah(kas.map((k) => ({ nilai: k.saldo })));
+  const totalBank = jumlah(kas.filter((k) => k.jenis === "BANK").map((k) => ({ nilai: k.saldo })));
+  const totalPettyCash = jumlah(
+    kas.filter((k) => k.jenis === "PETTY_CASH").map((k) => ({ nilai: k.saldo }))
+  );
   const totalAsetLain = jumlah(asetLain);
   const totalAset = Math.round((totalKas + totalAsetLain) * 100) / 100;
   const totalLiabilitas = jumlah(liabilitas);
@@ -327,6 +346,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
     periode: { dari, sampai },
     rekening: rekeningList.map((r) => ({ id: r.id, nama: r.nama })),
     jumlahTransaksiPeriode: dalamPeriode.length,
+    menungguAcc,
 
     /**
      * Satu-satunya pemeriksaan yang berarti di laporan ini: kas versi laporan
@@ -358,6 +378,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId }: OpsiLaporan) {
       tanggal: sampai,
       kas,
       totalKas,
+      totalBank,
+      totalPettyCash,
       asetLain: nAsetLain,
       totalAsetLain,
       totalAset,

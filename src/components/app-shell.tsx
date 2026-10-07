@@ -11,6 +11,8 @@ import {
   Landmark,
   ListTree,
   Users,
+  ScrollText,
+  CircleHelp,
   LogOut,
   Menu,
   X,
@@ -27,14 +29,18 @@ interface MenuItem {
   butuh?: Role[];
 }
 
+const SEMUA_KECUALI_BENDAHARA: Role[] = ["OWNER", "ADMIN", "STAFF"];
+
 const MENU: MenuItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/rekap", label: "Rekap", icon: FileUp, butuh: ["OWNER", "ADMIN", "STAFF"] },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, butuh: SEMUA_KECUALI_BENDAHARA },
+  { href: "/rekap", label: "Rekap", icon: FileUp, butuh: SEMUA_KECUALI_BENDAHARA },
   { href: "/transaksi", label: "Transaksi", icon: Table2 },
-  { href: "/laporan", label: "Laporan", icon: BookOpenCheck },
+  { href: "/laporan", label: "Laporan", icon: BookOpenCheck, butuh: SEMUA_KECUALI_BENDAHARA },
   { href: "/master/rekening", label: "Rekening", icon: Landmark, butuh: ["OWNER", "ADMIN"] },
   { href: "/master/kode-akun", label: "Kode Akun", icon: ListTree, butuh: ["OWNER", "ADMIN"] },
   { href: "/pengguna", label: "Pengguna", icon: Users, butuh: ["OWNER"] },
+  { href: "/log", label: "Log Aktivitas", icon: ScrollText, butuh: ["OWNER"] },
+  { href: "/panduan", label: "Panduan", icon: CircleHelp },
 ];
 
 export interface PenggunaProps {
@@ -51,6 +57,15 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
   React.useEffect(() => setDrawerBuka(false), [pathname]);
 
   const menuTampil = MENU.filter((m) => !m.butuh || m.butuh.includes(user.role));
+
+  // Membuka halaman terlarang lewat URL langsung → alihkan ke halaman pertama yang boleh.
+  // API tetap menolak di server; ini hanya supaya user tidak melihat halaman penuh error.
+  React.useEffect(() => {
+    const item = MENU.find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`));
+    if (item?.butuh && !item.butuh.includes(user.role)) {
+      router.replace(menuTampil[0]?.href ?? "/panduan");
+    }
+  }, [pathname, user.role, router, menuTampil]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });

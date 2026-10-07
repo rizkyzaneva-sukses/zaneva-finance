@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput } from "@/lib/auth";
+import { bolehRekap } from "@/lib/auth";
 import { parseMandiriPdf } from "@/lib/mandiri-parser";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 /** Parse e-Statement Mandiri (PDF berpassword). Bank lain belum punya parser PDF. */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin(bolehRekap);
   if (!auth.ok) return auth.response;
 
   try {

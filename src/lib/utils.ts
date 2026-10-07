@@ -5,6 +5,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** PETTY_CASH → "Petty Cash (kas tunai)", MANDIRI → "Mandiri", dst. */
+export function labelBank(bank: string): string {
+  const peta: Record<string, string> = {
+    PETTY_CASH: "Petty Cash (kas tunai)",
+    MANDIRI: "Mandiri",
+    LAINNYA: "Lainnya",
+  };
+  return peta[bank] ?? bank;
+}
+
 /** Rp 1.250.000 — tanpa desimal, untuk ringkasan & dashboard */
 export function formatRupiah(nilai: number | string | null | undefined): string {
   const angka = Number(nilai ?? 0);

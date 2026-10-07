@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
+import { bolehLihatLaporan } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { StatusKode } from "@/generated/prisma/enums";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { saldoMeleset } from "@/lib/rekap";
 
 export async function GET(req: Request) {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(bolehLihatLaporan);
   if (!auth.ok) return auth.response;
 
   try {
     const sp = new URL(req.url).searchParams;
     const where = filterDariQuery(sp);
 
-    const [rekeningAktif, agregat, perKode, rincianRows, belumBeres, semuaDalamFilter] = await Promise.all([
+    const [rekeningAktif, agregat, perKode, rincianRows, belumBeres, semuaDalamFilter, menungguAcc] = await Promise.all([
       prisma.rekening.findMany({
         where: { aktif: true },
         orderBy: [{ urutan: "asc" }, { nama: "asc" }],
@@ -54,6 +55,8 @@ export async function GET(req: Request) {
         select: { tanggal: true, uangMasuk: true, uangKeluar: true },
         orderBy: { tanggal: "asc" },
       }),
+      // Antrean ACC: transaksi hasil kerja STAFF/BENDAHARA yang belum disahkan
+      prisma.transaksi.count({ where: { ...where, statusAcc: "MENUNGGU" } }),
     ]);
 
     // Saldo & status rekonsiliasi tiap rekening: ambil transaksi terakhirnya.
@@ -153,6 +156,7 @@ export async function GET(req: Request) {
       perBulan,
       breakdown,
       belumBeres,
+      menungguAcc,
     });
   } catch (err) {
     return apiError(err);

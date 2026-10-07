@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { Role } from "@/generated/prisma/enums";
+import { Role, StatusAcc } from "@/generated/prisma/enums";
 
 export interface PenggunaAktif {
   id: string;
@@ -26,28 +26,55 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
   return { id: user.id, nama: user.nama, username: user.username, role: user.role };
 }
 
-const HIERARKI: Record<Role, number> = {
-  [Role.VIEWER]: 0,
-  [Role.STAFF]: 1,
-  [Role.ADMIN]: 2,
-  [Role.OWNER]: 3,
-};
+/*
+ * Matriks izin. "Finance" = ADMIN.
+ *
+ *                              OWNER  ADMIN  STAFF  BENDAHARA
+ *  Rekap (upload mutasi bank)    ✓      ✓      ✓       —
+ *  Koreksi / input manual        ✓      ✓      ✓*      ✓*      (* butuh ACC)
+ *  ACC koreksi                   ✓      ✓      —       —
+ *  Hapus transaksi, master data  ✓      ✓      —       —
+ *  Dashboard & Laporan           ✓      ✓      ✓       —
+ *  Kelola pengguna, lihat Log    ✓      —      —       —
+ */
 
-export function punyaMinimalRole(role: Role, minimal: Role): boolean {
-  return HIERARKI[role] >= HIERARKI[minimal];
+/** Upload mutasi bank, parsing, dan simpan rekap. BENDAHARA tidak: kas tunai tidak punya mutasi bank. */
+export function bolehRekap(role: Role): boolean {
+  return role !== Role.BENDAHARA;
 }
 
-/** Boleh upload, koreksi kode & catatan, simpan rekap. */
-export function bolehInput(role: Role): boolean {
-  return punyaMinimalRole(role, Role.STAFF);
+/** Koreksi kode/catatan, split, dan input manual. */
+export function bolehInput(): boolean {
+  return true;
 }
 
-/** Boleh hapus transaksi & kelola master data. */
+/** Perubahan oleh role ini perlu disahkan ADMIN/OWNER sebelum final. */
+export function butuhAcc(role: Role): boolean {
+  return role === Role.STAFF || role === Role.BENDAHARA;
+}
+
+export function statusAccUntuk(role: Role): StatusAcc {
+  return butuhAcc(role) ? StatusAcc.MENUNGGU : StatusAcc.DISETUJUI;
+}
+
+/** Boleh mengesahkan pekerjaan STAFF/BENDAHARA. */
+export function bolehAcc(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER;
+}
+
+/** Boleh hapus transaksi dan kelola master data (rekening, kode akun). */
 export function bolehKelola(role: Role): boolean {
-  return punyaMinimalRole(role, Role.ADMIN);
+  return role === Role.ADMIN || role === Role.OWNER;
 }
 
-/** Boleh kelola akun pengguna. */
+/** Dashboard, Laporan, export. */
+export function bolehLihatLaporan(role: Role): boolean {
+  return role !== Role.BENDAHARA;
+}
+
+/** Kelola akun pengguna dan lihat log perubahan. */
 export function bolehKelolaPengguna(role: Role): boolean {
   return role === Role.OWNER;
 }
+
+export const bolehLihatLog = bolehKelolaPengguna;

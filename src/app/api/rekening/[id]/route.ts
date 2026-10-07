@@ -72,9 +72,19 @@ export async function DELETE(_req: Request, { params }: Params) {
       );
     }
 
+    const lama = await prisma.rekening.findUnique({ where: { id } });
     await prisma.rekening.delete({ where: { id } });
     await prisma.auditLog.create({
-      data: { userId: auth.user.id, entitas: "Rekening", entitasId: id, aksi: AksiAudit.HAPUS },
+      data: {
+        userId: auth.user.id,
+        entitas: "Rekening",
+        entitasId: id,
+        aksi: AksiAudit.HAPUS,
+        // Data lama disimpan karena barisnya sudah tidak ada lagi untuk dilihat.
+        dataLama: lama
+          ? { nama: lama.nama, bank: lama.bank, saldoAwal: lama.saldoAwal.toFixed(2) }
+          : undefined,
+      },
     });
 
     return NextResponse.json({ ok: true });

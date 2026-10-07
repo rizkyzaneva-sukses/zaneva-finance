@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehInput } from "@/lib/auth";
+import { bolehRekap, statusAccUntuk } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { StatusKode, Sumber } from "@/generated/prisma/enums";
@@ -24,7 +24,7 @@ interface BarisMasuk {
 }
 
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehInput);
+  const auth = await wajibLogin(bolehRekap);
   if (!auth.ok) return auth.response;
 
   try {
@@ -131,6 +131,8 @@ export async function POST(req: Request) {
           yakin: b.yakin !== false,
           // Duplikat yang sengaja dipaksa masuk butuh hash unik agar lolos constraint
           dedupeHash: hashFinal,
+          // STAFF menyimpan rekap → menunggu ACC; ADMIN/OWNER → langsung final.
+          statusAcc: statusAccUntuk(auth.user.role),
           createdById: auth.user.id,
         });
       }

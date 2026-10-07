@@ -3,7 +3,7 @@ import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelola } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { Bank } from "@/generated/prisma/enums";
+import { Bank, Role } from "@/generated/prisma/enums";
 
 export async function GET() {
   const auth = await wajibLogin();
@@ -11,6 +11,8 @@ export async function GET() {
 
   try {
     const rekening = await prisma.rekening.findMany({
+      // BENDAHARA hanya perlu (dan boleh) melihat kas tunai
+      where: auth.user.role === Role.BENDAHARA ? { bank: Bank.PETTY_CASH } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
       include: { _count: { select: { transaksi: true } } },
     });
