@@ -630,7 +630,7 @@ function Sel({ v }: { v: Izin }) {
       >
         <Check className="h-4 w-4 text-green-700 dark:text-green-400" aria-label="Boleh" />
         <span className="text-[10px] font-medium leading-tight text-blue-800 dark:text-blue-300">
-          {v === "acc-kas" ? "ACC, kas tunai saja" : "ACC"}
+          {v === "acc-kas" ? "perlu ACC, kas tunai saja" : "perlu ACC"}
         </span>
       </span>
     );
@@ -648,8 +648,9 @@ function PenjelasanRole({ roleSaya }: { roleSaya: Role | null }) {
       <Card>
         <h2 className="mb-1 text-base font-semibold text-gray-900 dark:text-gray-50">Siapa boleh apa</h2>
         <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">
-          Centang = boleh. <strong>ACC</strong> = boleh, tapi hasilnya berstatus Menunggu ACC sampai disahkan Finance.{" "}
-          <strong>ACC, kas tunai saja</strong> = sama, tapi hanya untuk rekening petty cash. Tanda minus = tidak boleh; sistem
+          Centang = boleh langsung. <strong>Perlu ACC</strong> = boleh dikerjakan, tapi transaksinya diberi badge{" "}
+          &quot;Menunggu ACC&quot; sampai Finance (ADMIN) atau OWNER menyetujuinya di halaman Transaksi (ACC = persetujuan/pengesahan).
+          Selama menunggu, transaksinya tetap ikut laporan. <strong>Perlu ACC, kas tunai saja</strong> = sama, tapi hanya untuk rekening petty cash. Tanda minus = tidak boleh; sistem
           menolaknya di server, bukan hanya menyembunyikan tombolnya.
         </p>
         <div className="overflow-x-auto">
