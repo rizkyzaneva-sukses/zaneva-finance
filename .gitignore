@@ -30,3 +30,7 @@ storage/
 # Berkas data pengguna (bukan kode)
 ~$*
 master_produk_*.xlsx
+
+# pnpm artifacts (repo pakai npm, Dockerfile npm ci) — jangan commit
+pnpm-lock.yaml
+pnpm-workspace.yaml
