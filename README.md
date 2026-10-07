@@ -19,8 +19,8 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
 - **Input transaksi manual** dari halaman Transaksi
 - **Alokasi dari laba** — OWNER menutup buku laba bersih bulan lalu, ADMIN/OWNER mendistribusikan ke
   kode alokasi sesuai persen (diatur di Kode Akun); saldo = jatah dari laba − pemakaian lewat mutasi
-- **Dokumen** — unggah screenshot/PDF mutasi per rekening. File dihapus otomatis dari server setelah
-  3 hari (`DOKUMEN_RETENSI_HARI`), catatannya tetap permanen
+- **Dokumen** — gudang file mutasi per rekening. Arsip disimpan permanen. Screenshot dan PDF di halaman
+  Rekap hanya dipakai untuk membaca mutasi, tidak disimpan
 - **Stok & HPP** — master produk multi-brand (SKU, Brand, HPP) dengan mass edit HPP lewat template
   Excel, dan stok opname (Persediaan Awal sekali, lalu SO Bulanan). Nilai persediaan = stok × HPP,
   HPP dikunci saat SO disimpan. Dipakai Laporan: Persediaan di Neraca, dan **599 Selisih HPP**
@@ -107,8 +107,7 @@ Skrip ini hanya menyentuh rekening berawalan `[DUMMY]`; datamu tidak disentuh. M
 | `SEED_ADMIN_PASSWORD` | Password user OWNER pertama saat seed (default `admin123`) |
 | `OPENROUTER_API_KEY` | API key dari [openrouter.ai](https://openrouter.ai), dipakai untuk OCR & saran kode akun |
 | `OPENROUTER_MODEL` | Model vision, default `google/gemini-2.5-flash` |
-| `DOKUMEN_DIR` | Folder penyimpanan file Dokumen (default `./storage/dokumen`). **Di server arahkan ke volume persisten** |
-| `DOKUMEN_RETENSI_HARI` | Lama file Dokumen disimpan sebelum dihapus otomatis (default 3) |
+| `DOKUMEN_DIR` | Folder penyimpanan arsip Dokumen (default `./storage/dokumen`). **Di server arahkan ke volume persisten dan ikut dibackup** |
 
 ## Cara kerja
 

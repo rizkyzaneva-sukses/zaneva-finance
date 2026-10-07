@@ -5,7 +5,7 @@ import { Loader2, Inbox, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const INPUT_CLASS =
-  "w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-50 dark:placeholder:text-gray-400";
+  "min-h-11 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-500 focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-50 dark:placeholder:text-gray-400";
 
 export function Field({
   label,
@@ -63,6 +63,54 @@ export function PageHeader({
   );
 }
 
+export function TabList({
+  label,
+  className,
+  children,
+}: {
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label={label}
+      className={cn(
+        "flex w-full flex-wrap gap-1 rounded-lg border border-gray-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-800",
+        className
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function TabButton({
+  aktif,
+  className,
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { aktif: boolean }) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={aktif}
+      className={cn(
+        "min-h-11 flex-1 rounded-md px-3 py-2 text-sm font-medium whitespace-nowrap transition-colors sm:min-h-9 sm:flex-none sm:px-4",
+        aktif
+          ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
+          : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-zinc-700",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 type Varian = "primer" | "sekunder" | "bahaya" | "sukses";
 
 const VARIAN: Record<Varian, string> = {
@@ -87,7 +135,7 @@ export function Button({
       {...props}
       disabled={props.disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         VARIAN[varian],
         className
       )}

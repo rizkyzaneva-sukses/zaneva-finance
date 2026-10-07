@@ -140,10 +140,9 @@ model Rekening {
   dokumen   DokumenMutasi[]
 }
 
-/// Arsip dokumen mutasi bank (screenshot/PDF) per rekening. FILE-nya dihapus
-/// otomatis setelah masa simpan (default 3 hari, karena mutasi bulanan bisa
-/// diunduh ulang dari bank), tapi CATATAN-nya tetap selamanya sehingga
-/// dokumentasi tetap rapi: dokumen apa, rekening mana, siapa, kapan.
+/// Gudang file mutasi bank (screenshot/PDF) per rekening.
+/// File arsip tidak dihapus otomatis. `kedaluwarsaPada` kosong = simpan selamanya.
+/// Catatan tetap ada walau file dihapus manual oleh ADMIN/OWNER.
 model DokumenMutasi {
   id         String   @id @default(cuid())
   rekeningId String
@@ -162,8 +161,8 @@ model DokumenMutasi {
   diunggahOleh   User?    @relation(fields: [diunggahOlehId], references: [id])
   diunggahPada   DateTime @default(now())
 
-  /// Kapan file akan dihapus dari disk.
-  kedaluwarsaPada DateTime
+  /// Kosong = arsip permanen. Terisi hanya untuk file sementara yang boleh dibersihkan.
+  kedaluwarsaPada DateTime?
   /// Terisi setelah file benar-benar terhapus (otomatis atau manual). Catatan tetap ada.
   fileDihapusPada DateTime?
 

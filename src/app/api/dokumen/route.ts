@@ -12,7 +12,6 @@ import {
   bersihkanKedaluwarsa,
   hapusFileDisk,
   kenaliJenis,
-  retensiHari,
   simpanFile,
 } from "@/lib/dokumen";
 
@@ -55,7 +54,7 @@ export async function GET(req: Request) {
       prisma.dokumenMutasi.count({ where }),
     ]);
 
-    return NextResponse.json({ dokumen, total, halaman, perHalaman, retensiHari: retensiHari() });
+    return NextResponse.json({ dokumen, total, halaman, perHalaman });
   } catch (err) {
     return apiError(err);
   }
@@ -119,7 +118,6 @@ export async function POST(req: Request) {
       siap.push({ nama: f.name, isi, jenis });
     }
 
-    const kedaluwarsa = new Date(Date.now() + retensiHari() * 24 * 60 * 60 * 1000);
     const hasil = [];
     for (const s of siap) {
       const id = buatIdDokumen();
@@ -137,13 +135,14 @@ export async function POST(req: Request) {
             periode: periodeMasuk || null,
             catatan,
             diunggahOlehId: auth.user.id,
-            kedaluwarsaPada: kedaluwarsa,
+            // Kosong = arsip permanen. Jangan diisi tanggal kedaluwarsa.
+            kedaluwarsaPada: null,
           },
         })
       );
     }
 
-    return NextResponse.json({ diunggah: hasil.length, kedaluwarsaPada: kedaluwarsa });
+    return NextResponse.json({ diunggah: hasil.length });
   } catch (err) {
     // Gagal di tengah jalan: buang file yang sempat tertulis supaya tidak menjadi yatim di disk.
     for (const t of tertulis) await hapusFileDisk(t.id, t.ext).catch(() => {});

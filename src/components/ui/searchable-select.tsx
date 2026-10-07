@@ -96,7 +96,7 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
             }
             className={cn(
               "flex w-full items-center justify-between gap-2 rounded-lg border text-left transition-colors",
-              compact ? "px-2 py-1 text-xs" : "px-3 py-2 text-sm",
+              compact ? "px-2 py-1 text-xs" : "min-h-11 px-3 py-2 text-sm",
               "border-gray-300 bg-white text-gray-900",
               "dark:border-zinc-700 dark:bg-zinc-800 dark:text-gray-50",
               "hover:bg-gray-50 dark:hover:bg-zinc-700",

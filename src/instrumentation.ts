@@ -1,7 +1,7 @@
 /**
- * Dijalankan sekali saat server Next.js menyala. Menjadwalkan penghapusan file
- * dokumen mutasi yang sudah lewat masa simpan, supaya tidak bergantung pada ada
- * tidaknya orang yang membuka halaman Dokumen.
+ * Dijalankan sekali saat server Next.js menyala. Menjadwalkan pembersihan file
+ * sementara yang masih punya tanggal kedaluwarsa. Arsip Dokumen (tanggal kosong)
+ * tidak pernah dihapus.
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, Check, Minus, Search } from "lucide-react";
-import { Badge, Card, INPUT_CLASS, PageHeader } from "@/components/ui/primitives";
+import { Badge, Card, INPUT_CLASS, PageHeader, TabButton, TabList } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 
 type Role = "OWNER" | "ADMIN" | "STAFF" | "BENDAHARA";
@@ -59,8 +59,9 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Ganti password akun awal",
         isi: (
           <>
-            Login dengan akun bawaan <code className="font-mono">admin</code>, lalu buka <Tautan href="/pengguna">Pengguna</Tautan>{" "}
-            dan ubah passwordnya. Password bawaan sama untuk semua instalasi, jadi jangan dibiarkan.
+            Login dengan akun bawaan <code className="font-mono">admin</code>, lalu buka{" "}
+            <Tautan href="/pengguna">Pengguna</Tautan> di kelompok Administrasi dan ubah passwordnya. Password bawaan
+            sama untuk semua instalasi, jadi jangan dibiarkan.
           </>
         ),
       },
@@ -68,8 +69,8 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Buat akun untuk tiap anggota tim",
         isi: (
           <>
-            Di <Tautan href="/pengguna">Pengguna</Tautan> pilih role sesuai tugas (lihat tab Penjelasan Role). Satu orang satu
-            akun, jangan berbagi, karena semua perubahan dicatat atas nama akunnya.
+            Di <Tautan href="/pengguna">Pengguna</Tautan> (Administrasi) pilih role sesuai tugas (lihat tab Penjelasan
+            Role). Satu orang satu akun, jangan berbagi, karena semua perubahan dicatat atas nama akunnya.
           </>
         ),
       },
@@ -77,7 +78,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Tambahkan semua rekening beserta saldo awalnya",
         isi: (
           <>
-            Di <Tautan href="/master/rekening">Rekening</Tautan>. Isi <strong>saldo awal</strong> dan tanggalnya dengan teliti: itu
+            Di <Tautan href="/master/rekening">Rekening</Tautan> (kelompok Master). Isi <strong>saldo awal</strong> dan tanggalnya dengan teliti: itu
             titik nol pembukuan, kalau salah seluruh saldo ikut salah. Kas tunai (mis. kas gudang) dibuat sebagai rekening berjenis{" "}
             <strong>Petty Cash</strong>, boleh lebih dari satu.
           </>
@@ -87,7 +88,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Periksa Kode Akun",
         isi: (
           <>
-            Di <Tautan href="/master/kode-akun">Kode Akun</Tautan> atur kolom <strong>Masuk laporan</strong> (Neraca / Laba Rugi / Tidak
+            Di <Tautan href="/master/kode-akun">Kode Akun</Tautan> (kelompok Master) atur kolom <strong>Masuk laporan</strong> (Neraca / Laba Rugi / Tidak
             masuk), <strong>Arus kas</strong>, dan <strong>% Alokasi</strong>. Kode yang masih berlabel &quot;Belum diatur&quot; akan
             muncul sebagai peringatan di Laporan sampai kamu putuskan.
           </>
@@ -97,7 +98,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Isi saldo awal alokasi (kalau sudah berjalan)",
         isi: (
           <>
-            Di <Tautan href="/alokasi">Alokasi</Tautan>, klik ikon pensil pada kode yang sudah punya saldo (mis. Alokasi R) supaya
+            Di <Tautan href="/alokasi">Alokasi</Tautan> (kelompok Tutup buku), klik ikon pensil pada kode yang sudah punya saldo (mis. Alokasi R) supaya
             hitungan tidak mulai dari nol.
           </>
         ),
@@ -113,7 +114,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Buka Rekap dan pilih rekening dulu",
         isi: (
           <>
-            Di <Tautan href="/rekap">Rekap</Tautan>, rekening wajib dipilih sebelum upload supaya transaksi masuk ke rekening yang
+            Di <Tautan href="/rekap">Rekap</Tautan> (kelompok Operasional), rekening wajib dipilih sebelum upload supaya transaksi masuk ke rekening yang
             benar. Screenshot dari bank apa pun bisa dibaca; PDF e-Statement baru didukung untuk Mandiri.
           </>
         ),
@@ -145,8 +146,8 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Arsipkan dokumennya (opsional)",
         isi: (
           <>
-            Di <Tautan href="/dokumen">Dokumen</Tautan>, unggah file mutasi ke rekeningnya. File dihapus otomatis setelah 3 hari,
-            catatannya tetap.
+            Di <Tautan href="/dokumen">Dokumen</Tautan> (kelompok Operasional), unggah file mutasi ke rekeningnya. Arsip di sana disimpan permanen.
+            Screenshot dan PDF di halaman Rekap tidak disimpan: hanya dibaca, lalu dibuang.
           </>
         ),
       },
@@ -161,7 +162,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Sahkan pekerjaan STAFF dan Bendahara",
         isi: (
           <>
-            Di <Tautan href="/dashboard">Dashboard</Tautan> ada banner &quot;menunggu ACC&quot;. Klik untuk membuka{" "}
+            Di <Tautan href="/dashboard">Dashboard</Tautan> (kelompok Operasional) ada banner &quot;menunggu ACC&quot;. Klik untuk membuka{" "}
             <Tautan href="/transaksi?menungguAcc=1">daftarnya</Tautan>, periksa, lalu klik centang per baris atau{" "}
             <strong>Setujui semua di halaman ini</strong>. Kalau ada yang salah, cukup ubah sendiri: perubahan oleh Finance otomatis
             disahkan.
@@ -172,7 +173,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Pastikan Laporan lengkap",
         isi: (
           <>
-            Buka <Tautan href="/laporan">Laporan</Tautan>. Kotak hijau &quot;Kas cocok&quot; harus muncul. Banner kuning berarti ada
+            Buka <Tautan href="/laporan">Laporan</Tautan> (kelompok Tutup buku). Kotak hijau &quot;Kas cocok&quot; harus muncul. Banner kuning berarti ada
             transaksi tanpa kode atau kode yang belum diatur masuk laporan, perbaiki sebelum laba dipakai.
           </>
         ),
@@ -181,7 +182,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Awal bulan: bagikan alokasi",
         isi: (
           <>
-            Setelah OWNER mengesahkan laba bulan lalu, buka <Tautan href="/alokasi">Alokasi</Tautan> lalu{" "}
+            Setelah OWNER mengesahkan laba bulan lalu, buka <Tautan href="/alokasi">Alokasi</Tautan> (kelompok Tutup buku) lalu{" "}
             <strong>Lihat &amp; sahkan distribusi</strong>. Periksa rinciannya sebelum disahkan.
           </>
         ),
@@ -197,7 +198,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Buka Transaksi lalu Tambah Transaksi",
         isi: (
           <>
-            Di <Tautan href="/transaksi">Transaksi</Tautan>, klik <strong>Tambah Transaksi</strong>. Rekening yang tampil hanya kas
+            Di <Tautan href="/transaksi">Transaksi</Tautan> (kelompok Operasional), klik <strong>Tambah Transaksi</strong>. Rekening yang tampil hanya kas
             tunai.
           </>
         ),
@@ -219,11 +220,51 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
   },
 ];
 
+const PETA_MENU: { grup: string; arti: string; item: string[] }[] = [
+  { grup: "Operasional", arti: "Kerja harian", item: ["Dashboard", "Rekap", "Transaksi", "Dokumen"] },
+  { grup: "Tutup buku", arti: "Laporan dan persediaan", item: ["Laporan", "Alokasi", "Stok & HPP"] },
+  { grup: "Master", arti: "Data acuan", item: ["Rekening", "Brand", "Kode Akun"] },
+  { grup: "Administrasi", arti: "Akun dan jejak, hanya OWNER", item: ["Pengguna", "Log Aktivitas"] },
+];
+
+function PetaMenu() {
+  return (
+    <Card>
+      <h2 className="text-base font-semibold text-gray-900 dark:text-gray-50">Peta menu</h2>
+      <p className="mt-1 mb-4 text-sm text-gray-600 dark:text-gray-400">
+        Sidebar dikelompokkan menurut pekerjaan, bukan daftar panjang. Kelompok yang tidak ada haknya tidak
+        ditampilkan. Di HP, tombol menu di kiri atas membuka daftar yang sama; judul di atas menunjukkan kelompok
+        dan halaman yang sedang dibuka.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {PETA_MENU.map((g) => (
+          <div key={g.grup} className="rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-zinc-800/80">
+            <div className="text-[11px] font-semibold tracking-[0.14em] text-gray-600 uppercase dark:text-gray-400">
+              {g.grup}
+            </div>
+            <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{g.arti}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {g.item.map((m) => (
+                <Badge key={m}>{m}</Badge>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-sm text-gray-700 dark:text-gray-300">
+        <strong>Panduan</strong> menempel di bawah sidebar, di luar kelompok. Akun yang dibatasi ke brand tertentu
+        tidak melihat Alokasi, Stok &amp; HPP, Kode Akun, dan Brand.
+      </p>
+    </Card>
+  );
+}
+
 function QuickStart({ roleSaya }: { roleSaya: Role | null }) {
   // Bagian untuk role pengguna ditaruh paling atas, supaya langsung ketemu.
   const urut = [...QUICK_START].sort((a, b) => Number(b.role === roleSaya) - Number(a.role === roleSaya));
   return (
     <div className="space-y-4">
+      <PetaMenu />
       {urut.map((s) => (
         <Card key={s.role} className={cn(s.role === roleSaya && "ring-2 ring-blue-500 dark:ring-blue-400")}>
           <div className="mb-1 flex flex-wrap items-center gap-2">
@@ -255,6 +296,11 @@ function QuickStart({ roleSaya }: { roleSaya: Role | null }) {
 
 // Jawaban sengaja teks biasa (bukan JSX) supaya bisa dicari lewat kotak pencarian.
 const QNA: { kategori: string; t: string; j: string }[] = [
+  {
+    kategori: "Menu",
+    t: "Di mana saya mencari halaman setelah menu dikelompokkan?",
+    j: "Sidebar punya empat kelompok. Operasional untuk kerja harian: Dashboard, Rekap, Transaksi, dan Dokumen. Tutup buku untuk Laporan, Alokasi, dan Stok & HPP. Master untuk Rekening, Brand, dan Kode Akun. Administrasi untuk Pengguna dan Log Aktivitas, hanya OWNER. Panduan menempel di bawah sidebar. Kelompok yang tidak ada haknya disembunyikan. Di HP, tombol menu di kiri atas membuka daftar yang sama, dan judul di atas menulis kelompok serta nama halamannya.",
+  },
   {
     kategori: "Rekap",
     t: "Bank apa saja yang bisa dibaca?",
@@ -402,8 +448,8 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   },
   {
     kategori: "Dokumen",
-    t: "Kenapa file dokumen saya hilang?",
-    j: "File mutasi dihapus otomatis 3 hari setelah diunggah, karena mutasi bulanan bisa diunduh ulang dari bank. Catatannya (nama file, rekening, periode, siapa, kapan) tetap tersimpan, jadi riwayatnya tidak hilang.",
+    t: "Kenapa file mutasi yang saya unggah tidak ada di arsip?",
+    j: "Screenshot dan PDF di halaman Rekap hanya dipakai untuk membaca mutasi, lalu dibuang. File itu tidak masuk arsip. Supaya tersimpan, unggah di halaman Dokumen: arsip di sana permanen, dikelompokkan per rekening. File hanya hilang dari Dokumen kalau Admin atau Owner menghapusnya manual. Catatannya (nama file, rekening, periode, siapa, kapan) tetap ada.",
   },
   {
     kategori: "Akun",
@@ -545,12 +591,12 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
   },
   {
     judul: "6. Arsip dokumen mutasi",
-    deskripsi: "Supaya dokumentasi per rekening rapi, tanpa menyimpan file selamanya.",
+    deskripsi: "Gudang file mutasi semua rekening. File di sini tidak dihapus otomatis.",
     langkah: [
       { role: "STAFF", teks: "Unggah PDF atau gambar di menu Dokumen, pilih rekening dan periode" },
-      { teks: "File bisa diunduh selama masa simpan (3 hari)" },
-      { teks: "Setelah itu file dihapus otomatis, tapi catatannya tetap ada selamanya" },
-      { role: "ADMIN", teks: "Boleh menghapus file lebih awal kalau perlu" },
+      { teks: "File tersimpan permanen dan bisa diunduh kapan saja" },
+      { teks: "Screenshot dan PDF di halaman Rekap tidak masuk arsip; file itu hanya dibaca lalu dibuang" },
+      { role: "ADMIN", teks: "Boleh menghapus file manual kalau perlu. Catatannya tetap ada" },
     ],
   },
 ];
@@ -597,7 +643,7 @@ function Workflow() {
 const RINGKAS_ROLE: {
   role: Role;
   peran: string;
-  menu: string[];
+  menu: { grup: string; item: string[] }[];
   bisa: string[];
   tidak: string[];
   catatan?: string;
@@ -605,7 +651,13 @@ const RINGKAS_ROLE: {
   {
     role: "OWNER",
     peran: "Pemilik usaha. Akses penuh, dan satu-satunya yang mengesahkan laba serta mengelola akun.",
-    menu: ["Dashboard", "Rekap", "Transaksi", "Dokumen", "Laporan", "Alokasi", "Rekening", "Kode Akun", "Pengguna", "Log Aktivitas", "Panduan"],
+    menu: [
+      { grup: "Operasional", item: ["Dashboard", "Rekap", "Transaksi", "Dokumen"] },
+      { grup: "Tutup buku", item: ["Laporan", "Alokasi", "Stok & HPP"] },
+      { grup: "Master", item: ["Rekening", "Brand", "Kode Akun"] },
+      { grup: "Administrasi", item: ["Pengguna", "Log Aktivitas"] },
+      { grup: "Di bawah sidebar", item: ["Panduan"] },
+    ],
     bisa: [
       "Semua yang bisa dilakukan ADMIN",
       "Membuat, mengubah, dan menonaktifkan akun pengguna",
@@ -618,7 +670,12 @@ const RINGKAS_ROLE: {
   {
     role: "ADMIN",
     peran: "Finance. Mengelola data keuangan dan mengesahkan pekerjaan tim.",
-    menu: ["Dashboard", "Rekap", "Transaksi", "Dokumen", "Laporan", "Alokasi", "Rekening", "Kode Akun", "Panduan"],
+    menu: [
+      { grup: "Operasional", item: ["Dashboard", "Rekap", "Transaksi", "Dokumen"] },
+      { grup: "Tutup buku", item: ["Laporan", "Alokasi", "Stok & HPP"] },
+      { grup: "Master", item: ["Rekening", "Brand", "Kode Akun"] },
+      { grup: "Di bawah sidebar", item: ["Panduan"] },
+    ],
     bisa: [
       "Meng-ACC koreksi dan input STAFF serta Bendahara (satuan atau massal)",
       "Mengubah transaksi tanpa perlu ACC, perubahannya langsung disetujui",
@@ -632,7 +689,11 @@ const RINGKAS_ROLE: {
   {
     role: "STAFF",
     peran: "Staf yang merekap mutasi dan membantu mengoreksi. Pekerjaannya disahkan Finance.",
-    menu: ["Dashboard", "Rekap", "Transaksi", "Dokumen", "Laporan", "Panduan"],
+    menu: [
+      { grup: "Operasional", item: ["Dashboard", "Rekap", "Transaksi", "Dokumen"] },
+      { grup: "Tutup buku", item: ["Laporan", "Stok & HPP"] },
+      { grup: "Di bawah sidebar", item: ["Panduan"] },
+    ],
     bisa: [
       "Upload mutasi, memeriksa hasil AI, dan menyimpan rekap",
       "Mengoreksi kode akun dan catatan, serta split transaksi",
@@ -649,7 +710,11 @@ const RINGKAS_ROLE: {
   {
     role: "BENDAHARA",
     peran: "Pemegang kas tunai (mis. gudang) yang tidak punya mutasi bank, jadi mencatat manual.",
-    menu: ["Transaksi", "Panduan"],
+    menu: [
+      { grup: "Operasional", item: ["Transaksi"] },
+      { grup: "Tutup buku", item: ["Stok & HPP"] },
+      { grup: "Di bawah sidebar", item: ["Panduan"] },
+    ],
     bisa: [
       "Menambah transaksi manual di rekening petty cash",
       "Melihat dan mengoreksi transaksi petty cash",
@@ -759,13 +824,20 @@ function PenjelasanRole({ roleSaya }: { roleSaya: Role | null }) {
             </div>
             <p className="mb-3 text-sm text-gray-700 dark:text-gray-300">{r.peran}</p>
 
-            <div className="mb-3">
-              <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Menu yang terlihat</div>
-              <div className="flex flex-wrap gap-1.5">
-                {r.menu.map((m) => (
-                  <Badge key={m}>{m}</Badge>
-                ))}
-              </div>
+            <div className="mb-3 space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">Menu yang terlihat</div>
+              {r.menu.map((g) => (
+                <div key={g.grup}>
+                  <div className="mb-1 text-[11px] font-semibold tracking-[0.12em] text-gray-600 uppercase dark:text-gray-400">
+                    {g.grup}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.item.map((m) => (
+                      <Badge key={m}>{m}</Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div className="mb-3">
@@ -825,32 +897,16 @@ export default function PanduanPage() {
     <>
       <PageHeader
         judul="Panduan"
-        deskripsi="Cara memakai Zaneva Finance: mulai cepat, tanya jawab, alur kerja, dan pembagian tugas tiap role."
+        deskripsi="Cara memakai Zaneva Finance: peta menu, mulai cepat, tanya jawab, alur kerja, dan pembagian tugas tiap role."
       />
 
-      <div
-        role="tablist"
-        aria-label="Bagian panduan"
-        className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
-      >
+      <TabList label="Bagian panduan" className="mb-4">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-              tab === t.key
-                ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
-                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
-            )}
-          >
+          <TabButton key={t.key} aktif={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       {tab === "mulai" && <QuickStart roleSaya={roleSaya} />}
       {tab === "qna" && <TanyaJawab />}

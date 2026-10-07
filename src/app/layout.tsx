@@ -16,7 +16,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen antialiased">
         {children}
-        <Toaster richColors position="top-center" />
+        <Toaster
+          richColors
+          position="top-center"
+          offset={{ top: "4.5rem" }}
+          mobileOffset={{ top: "4.5rem" }}
+        />
       </body>
     </html>
   );

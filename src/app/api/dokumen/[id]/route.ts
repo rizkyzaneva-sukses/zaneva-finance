@@ -8,7 +8,7 @@ import { bolehRekening } from "@/lib/akses";
 
 type Params = { params: Promise<{ id: string }> };
 
-/** Unduh file asli. Sudah dihapus otomatis → 410, bukan error server. */
+/** Unduh file asli. Sudah dihapus manual → 410, bukan error server. */
 export async function GET(_req: Request, { params }: Params) {
   const auth = await wajibLogin(bolehRekap);
   if (!auth.ok) return auth.response;
@@ -22,7 +22,7 @@ export async function GET(_req: Request, { params }: Params) {
     }
     if (d.fileDihapusPada) {
       return NextResponse.json(
-        { error: "File sudah dihapus otomatis setelah masa simpan. Unduh ulang mutasinya dari bank." },
+        { error: "File ini sudah dihapus. Catatannya tetap tersimpan." },
         { status: 410 }
       );
     }
@@ -46,7 +46,7 @@ export async function GET(_req: Request, { params }: Params) {
   }
 }
 
-/** Hapus file lebih awal dari jadwal. Catatannya tetap tersimpan. Hanya ADMIN/OWNER. */
+/** Hapus file dari arsip. Catatannya tetap tersimpan. Hanya ADMIN/OWNER. */
 export async function DELETE(_req: Request, { params }: Params) {
   const auth = await wajibLogin(bolehKelola);
   if (!auth.ok) return auth.response;

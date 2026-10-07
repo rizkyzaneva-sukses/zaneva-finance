@@ -13,14 +13,8 @@ export const MAKS_FILE = 10;
 /** Batas total satu kali unggah; harus di bawah experimental.proxyClientMaxBodySize di next.config.mjs. */
 export const MAKS_TOTAL = 100 * 1024 * 1024;
 
-/** Masa simpan file di disk. Catatan dokumennya tidak ikut dihapus. */
-export function retensiHari(): number {
-  const n = Number(process.env.DOKUMEN_RETENSI_HARI);
-  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 3;
-}
-
 /**
- * Folder penyimpanan file. Di server wajib diarahkan ke volume persisten
+ * Folder penyimpanan arsip. Di server wajib diarahkan ke volume persisten
  * (DOKUMEN_DIR), kalau tidak file hilang tiap container dibuat ulang.
  */
 export function folderDokumen(): string {
@@ -75,9 +69,9 @@ export function ekstensiDariTipe(tipe: string): string {
 }
 
 /**
- * Hapus file yang sudah lewat masa simpan, lalu tandai catatannya. Catatan
- * tidak pernah dihapus. Aman dipanggil berulang: hanya menyentuh yang kedaluwarsa
- * dan belum ditandai terhapus.
+ * Hapus file sementara yang sudah lewat masa simpan, lalu tandai catatannya.
+ * Arsip halaman Dokumen (`kedaluwarsaPada` kosong) tidak pernah disentuh.
+ * Catatan tidak pernah dihapus. Aman dipanggil berulang.
  */
 export async function bersihkanKedaluwarsa(): Promise<number> {
   const lewat = await prisma.dokumenMutasi.findMany({

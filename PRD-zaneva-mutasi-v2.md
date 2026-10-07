@@ -24,10 +24,9 @@ Bagian di bawah ini ditulis sebelum fitur berikut dibangun. **Kalau bertentangan
   (`PeriodeLaba`); ADMIN/OWNER mendistribusikannya ke kode alokasi sesuai `persenAlokasi`
   (`DistribusiAlokasi`, nominal di-snapshot). Saldo alokasi = saldo awal + jatah − pemakaian via
   mutasi. Laba ≤ 0 tidak didistribusikan; total persen ≤ 100; pembatalan hanya OWNER.
-- **Dokumen:** unggah screenshot/PDF mutasi per rekening; file di disk (`DOKUMEN_DIR`), dihapus
-  setelah `DOKUMEN_RETENSI_HARI` (default 3) oleh timer per jam + pembersihan saat daftar dibuka;
-  catatan `DokumenMutasi` permanen. Ini **mengubah** constraint "file sumber dibuang" di bawah
-  hanya untuk fitur Dokumen; Rekap tetap tidak menyimpan file.
+- **Dokumen:** gudang file mutasi per rekening di disk (`DOKUMEN_DIR`). Arsip ini permanen —
+  tidak dihapus otomatis. Hapus manual oleh ADMIN/OWNER hanya membuang file; catatan `DokumenMutasi`
+  tetap. Rekap tetap tidak menyimpan file: screenshot dan PDF hanya dibaca di memori request.
 - **Log Aktivitas** (OWNER) membaca `AuditLog`. **Panduan** adalah halaman bantuan di dalam aplikasi.
 
 ---

@@ -25,7 +25,6 @@ interface Dokumen {
   periode: string | null;
   catatan: string | null;
   diunggahPada: string;
-  kedaluwarsaPada: string;
   fileDihapusPada: string | null;
   rekening: { nama: string };
   diunggahOleh: { nama: string } | null;
@@ -33,7 +32,7 @@ interface Dokumen {
 
 const OPSI_STATUS = [
   { value: "ada", label: "File masih tersimpan" },
-  { value: "dihapus", label: "File sudah dihapus otomatis" },
+  { value: "dihapus", label: "File dihapus" },
 ];
 
 const NAMA_BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
@@ -57,29 +56,47 @@ function periodeTeks(p: string | null) {
   return `${NAMA_BULAN[Number(m) - 1]} ${y}`;
 }
 
-/** Sisa masa simpan, ditulis dengan satuan yang paling terbaca. */
-function SisaWaktu({ d }: { d: Dokumen }) {
+function StatusFile({ d }: { d: Dokumen }) {
   if (d.fileDihapusPada) {
     return (
       <span title={`Dihapus ${waktu(d.fileDihapusPada)}`}>
-        <Badge>File sudah dihapus</Badge>
+        <Badge>File dihapus</Badge>
       </span>
     );
   }
-  const ms = new Date(d.kedaluwarsaPada).getTime() - Date.now();
-  if (ms <= 0) return <Badge warna="kuning">Segera dihapus</Badge>;
-  const jam = Math.ceil(ms / 3_600_000);
+  return <Badge warna="hijau">Tersimpan</Badge>;
+}
+
+function AksiFile({ d, bolehHapus, onHapus }: { d: Dokumen; bolehHapus: boolean; onHapus: () => void }) {
+  if (d.fileDihapusPada) return null;
   return (
-    <Badge warna={jam <= 24 ? "kuning" : "biru"}>
-      {jam >= 48 ? `${Math.ceil(jam / 24)} hari lagi` : `${jam} jam lagi`}
-    </Badge>
+    <div className="flex shrink-0">
+      <a
+        href={`/api/dokumen/${d.id}`}
+        title="Unduh"
+        aria-label={`Unduh ${d.namaFile}`}
+        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
+      >
+        <Download className="h-4 w-4" />
+      </a>
+      {bolehHapus && (
+        <button
+          type="button"
+          title="Hapus file"
+          aria-label={`Hapus file ${d.namaFile}`}
+          onClick={onHapus}
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      )}
+    </div>
   );
 }
 
 export default function DokumenPage() {
   const [rekening, setRekening] = React.useState<SelectOption[]>([]);
   const [role, setRole] = React.useState<string | null>(null);
-  const [retensi, setRetensi] = React.useState(3);
 
   const [rekeningUnggah, setRekeningUnggah] = React.useState<string | null>(null);
   const [periodeUnggah, setPeriodeUnggah] = React.useState("");
@@ -133,7 +150,6 @@ export default function DokumenPage() {
       if (!res.ok) throw new Error(data.error);
       setDaftar(data.dokumen);
       setTotal(data.total);
-      setRetensi(data.retensiHari);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memuat dokumen");
     } finally {
@@ -211,9 +227,10 @@ export default function DokumenPage() {
       <div className="mb-4 flex items-start gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
         <Info className="mt-0.5 h-4 w-4 shrink-0" />
         <span>
-          File dihapus otomatis <strong>{retensi} hari</strong> setelah diunggah, karena mutasi bulanan bisa
-          diunduh ulang dari bank. <strong>Catatannya tetap tersimpan</strong> (dokumen apa, rekening mana, siapa
-          yang mengunggah, kapan), jadi riwayatnya tidak hilang walau filenya sudah tidak ada.
+          Ini gudang file mutasi semua rekening. File yang diunggah di sini <strong>disimpan permanen</strong> dan
+          tidak dihapus otomatis. Screenshot dan PDF di halaman <strong>Rekap</strong> hanya dipakai untuk membaca
+          mutasi, lalu dibuang — salinan arsipnya yang di sini. Kalau Admin atau Owner menghapus file secara manual,{" "}
+          <strong>catatannya tetap tersimpan</strong>.
         </span>
       </div>
 
@@ -294,7 +311,7 @@ export default function DokumenPage() {
                   type="button"
                   aria-label={`Hapus ${f.name} dari daftar`}
                   onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                  className="ml-2 shrink-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                  className="ml-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -363,7 +380,54 @@ export default function DokumenPage() {
             <div className="mb-2 text-xs text-gray-600 dark:text-gray-400">
               {total} dokumen · halaman {halaman} dari {totalHalaman}
             </div>
-            <div className="overflow-x-auto">
+            <ul className="space-y-3 md:hidden">
+              {daftar.map((d) => (
+                <li key={d.id} className="rounded-lg border border-gray-200 p-3 dark:border-zinc-700">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex min-w-0 items-start gap-2">
+                      {d.tipe === "application/pdf" ? (
+                        <FileText className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                      ) : (
+                        <ImageIcon className="mt-0.5 h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="break-words text-sm text-gray-900 dark:text-gray-50">{d.namaFile}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                          {ukuranTeks(d.ukuran)}
+                          {d.catatan && ` · ${d.catatan}`}
+                        </div>
+                      </div>
+                    </div>
+                    <AksiFile d={d} bolehHapus={bolehHapus} onHapus={() => setHapusTarget(d)} />
+                  </div>
+                  <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                    <div>
+                      <dt className="text-gray-600 dark:text-gray-400">Rekening</dt>
+                      <dd className="break-words text-gray-900 dark:text-gray-50">{d.rekening.nama}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-600 dark:text-gray-400">Periode</dt>
+                      <dd className="text-gray-900 dark:text-gray-50">{periodeTeks(d.periode)}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-600 dark:text-gray-400">Diunggah</dt>
+                      <dd className="text-gray-900 dark:text-gray-50">
+                        {waktu(d.diunggahPada)}
+                        <div>{d.diunggahOleh?.nama ?? "—"}</div>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-600 dark:text-gray-400">Status</dt>
+                      <dd className="mt-0.5">
+                        <StatusFile d={d} />
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
@@ -371,7 +435,7 @@ export default function DokumenPage() {
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Rekening</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Periode</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Diunggah</th>
-                    <th className="whitespace-nowrap px-2 py-2 font-medium">Masa simpan file</th>
+                    <th className="whitespace-nowrap px-2 py-2 font-medium">Status</th>
                     <th className="px-2 py-2"></th>
                   </tr>
                 </thead>
@@ -403,30 +467,10 @@ export default function DokumenPage() {
                         <div className="text-xs text-gray-600 dark:text-gray-400">{d.diunggahOleh?.nama ?? "—"}</div>
                       </td>
                       <td className="whitespace-nowrap px-2 py-2">
-                        <SisaWaktu d={d} />
+                        <StatusFile d={d} />
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">
-                        {!d.fileDihapusPada && (
-                          <a
-                            href={`/api/dokumen/${d.id}`}
-                            title="Unduh"
-                            aria-label={`Unduh ${d.namaFile}`}
-                            className="inline-flex rounded p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
-                        )}
-                        {bolehHapus && !d.fileDihapusPada && (
-                          <button
-                            type="button"
-                            title="Hapus file sekarang"
-                            aria-label={`Hapus file ${d.namaFile}`}
-                            onClick={() => setHapusTarget(d)}
-                            className="rounded p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        )}
+                        <AksiFile d={d} bolehHapus={bolehHapus} onHapus={() => setHapusTarget(d)} />
                       </td>
                     </tr>
                   ))}
@@ -435,7 +479,7 @@ export default function DokumenPage() {
             </div>
 
             {totalHalaman > 1 && (
-              <div className="mt-3 flex items-center justify-between">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <Button varian="sekunder" disabled={halaman <= 1} onClick={() => setHalaman((h) => h - 1)}>
                   Sebelumnya
                 </Button>

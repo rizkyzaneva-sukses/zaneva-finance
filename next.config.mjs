@@ -2,6 +2,8 @@
 const nextConfig = {
   // Wajib untuk Dockerfile di EasyPanel — tanpa ini image jadi besar sekali
   output: "standalone",
+  // Indikator dev jangan menutup label Panduan di pojok kiri sidebar.
+  devIndicators: { position: "bottom-right" },
   typescript: { ignoreBuildErrors: false },
   serverExternalPackages: ["pdfjs-dist"],
   experimental: {

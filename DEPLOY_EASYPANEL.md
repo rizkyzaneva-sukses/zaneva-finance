@@ -40,7 +40,6 @@ New Service → **App** → Source: GitHub → pilih repo
 | `OPENROUTER_API_KEY` | API key dari openrouter.ai |
 | `OPENROUTER_MODEL` | default `google/gemini-2.5-flash` |
 | `DOKUMEN_DIR` | `/data/dokumen` |
-| `DOKUMEN_RETENSI_HARI` | `3` |
 
 ## 4. Volume untuk Dokumen (WAJIB)
 App → **Mounts** → tambah **Volume**, mount path `/data`.
@@ -60,7 +59,7 @@ Push ke GitHub → EasyPanel → Deploy. Migrasi baru ikut berjalan otomatis saa
 
 ## Backup
 Database dan volume `/data` adalah satu-satunya data. Aktifkan backup Postgres di EasyPanel.
-File Dokumen sengaja dihapus otomatis setelah masa simpan, jadi tidak perlu dibackup.
+Arsip Dokumen disimpan permanen, jadi volume `/data` wajib ikut dibackup.
 
 ## Kalau bermasalah
 | Gejala | Cek |

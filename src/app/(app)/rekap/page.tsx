@@ -22,6 +22,8 @@ import {
   Field,
   INPUT_CLASS,
   PageHeader,
+  TabButton,
+  TabList,
 } from "@/components/ui/primitives";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { SplitEditor, type RincianForm } from "@/components/split-editor";
@@ -296,36 +298,25 @@ export default function RekapPage() {
               <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Sumber data
               </label>
-              <div
-                role="tablist"
-                className="inline-flex rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
-              >
+              <TabList label="Sumber data">
                 {(
                   [
                     { key: "screenshot", label: "Screenshot" },
                     { key: "pdf", label: "PDF Mandiri" },
                   ] as { key: Mode; label: string }[]
                 ).map((t) => (
-                  <button
+                  <TabButton
                     key={t.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={mode === t.key}
+                    aktif={mode === t.key}
                     onClick={() => {
                       setMode(t.key);
                       setBaris([]);
                     }}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                      mode === t.key
-                        ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
-                        : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
-                    )}
                   >
                     {t.label}
-                  </button>
+                  </TabButton>
                 ))}
-              </div>
+              </TabList>
             </div>
           </div>
 
@@ -370,7 +361,7 @@ export default function RekapPage() {
                           type="button"
                           aria-label={`Hapus ${f.name}`}
                           onClick={() => setGambar((prev) => prev.filter((_, j) => j !== i))}
-                          className="ml-2 shrink-0 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
+                          className="ml-2 inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400"
                         >
                           <X className="h-4 w-4" />
                         </button>
@@ -411,13 +402,13 @@ export default function RekapPage() {
                         type={lihatPassword ? "text" : "password"}
                         value={passwordPdf}
                         onChange={(e) => setPasswordPdf(e.target.value)}
-                        className={`${INPUT_CLASS} pr-9`}
+                        className={`${INPUT_CLASS} pr-12`}
                       />
                       <button
                         type="button"
                         onClick={() => setLihatPassword((v) => !v)}
                         aria-label={lihatPassword ? "Sembunyikan" : "Tampilkan"}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400"
+                        className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-gray-500 dark:text-gray-400"
                       >
                         {lihatPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </button>
@@ -431,6 +422,13 @@ export default function RekapPage() {
           <Button className="mt-4" onClick={proses} loading={memproses} disabled={!rekeningId}>
             {memproses ? tahap || "Memproses..." : "Proses"}
           </Button>
+          <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+            File ini hanya dipakai untuk membaca mutasi, tidak disimpan. Arsip bulanannya ada di{" "}
+            <Link href="/dokumen" className="font-medium text-blue-800 underline dark:text-blue-300">
+              Dokumen
+            </Link>
+            .
+          </p>
           {!rekeningId && (
             <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
               Pilih rekening dulu — transaksi harus tahu masuk ke rekening mana.

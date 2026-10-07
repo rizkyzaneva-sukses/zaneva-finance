@@ -23,6 +23,8 @@ import {
   Modal,
   PageHeader,
   Skeleton,
+  TabButton,
+  TabList,
 } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { downloadBlob } from "@/lib/download";
@@ -399,7 +401,11 @@ function TabSo({ role }: { role: string | null }) {
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Jenis" required>
-            <div className="inline-flex w-full rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800">
+            <div
+              role="radiogroup"
+              aria-label="Jenis stok opname"
+              className="flex w-full flex-wrap gap-1 rounded-lg border border-gray-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-800"
+            >
               {(
                 [
                   ["AWAL", "Persediaan Awal"],
@@ -409,15 +415,17 @@ function TabSo({ role }: { role: string | null }) {
                 <button
                   key={v}
                   type="button"
+                  role="radio"
+                  aria-checked={jenis === v}
                   onClick={() => {
                     setJenis(v);
                     setPosisiManual(false);
                   }}
                   className={cn(
-                    "flex-1 rounded-md px-2 py-1.5 text-sm font-medium",
+                    "min-h-11 flex-1 rounded-md px-2 text-sm font-medium whitespace-nowrap",
                     jenis === v
                       ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
-                      : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
+                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-zinc-700"
                   )}
                 >
                   {l}
@@ -1155,34 +1163,18 @@ export default function StokPage() {
         deskripsi="Stok opname bulanan dan master produk (HPP). Dasar nilai persediaan di Neraca dan Selisih HPP di Laba Rugi."
       />
 
-      <div
-        role="tablist"
-        aria-label="Bagian Stok dan HPP"
-        className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
-      >
+      <TabList label="Bagian Stok dan HPP" className="mb-4">
         {(
           [
             ["so", "Stok Opname"],
             ...(bolehMaster ? [["master", "Master Produk (HPP)"]] : []),
           ] as [typeof tab, string][]
         ).map(([k, l]) => (
-          <button
-            key={k}
-            type="button"
-            role="tab"
-            aria-selected={tab === k}
-            onClick={() => setTab(k)}
-            className={cn(
-              "whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-              tab === k
-                ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
-                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
-            )}
-          >
+          <TabButton key={k} aktif={tab === k} onClick={() => setTab(k)}>
             {l}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       {tab === "so" ? <TabSo role={role} /> : bolehMaster ? <TabMaster /> : null}
     </>

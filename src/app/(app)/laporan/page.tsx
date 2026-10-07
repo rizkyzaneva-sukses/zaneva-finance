@@ -11,6 +11,8 @@ import {
   INPUT_CLASS,
   PageHeader,
   Skeleton,
+  TabButton,
+  TabList,
 } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { cn, formatRupiah } from "@/lib/utils";
@@ -700,29 +702,13 @@ export default function LaporanPage() {
         </div>
       </Card>
 
-      <div
-        role="tablist"
-        aria-label="Jenis laporan"
-        className="mb-4 inline-flex max-w-full overflow-x-auto rounded-lg border border-gray-300 bg-white p-0.5 dark:border-zinc-700 dark:bg-zinc-800"
-      >
+      <TabList label="Jenis laporan" className="mb-4">
         {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => setTab(t.key)}
-            className={cn(
-              "whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
-              tab === t.key
-                ? "bg-gray-200 text-gray-900 dark:bg-zinc-700 dark:text-gray-50"
-                : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"
-            )}
-          >
+          <TabButton key={t.key} aktif={tab === t.key} onClick={() => setTab(t.key)}>
             {t.label}
-          </button>
+          </TabButton>
         ))}
-      </div>
+      </TabList>
 
       <Card>
         {memuat && !data ? (
