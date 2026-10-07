@@ -13,7 +13,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Riwayat stok opname. Nilai rupiah hanya untuk role yang boleh melihat laporan. */
 export async function GET() {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(undefined, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -69,7 +69,7 @@ export async function GET() {
  * HPP tiap SKU di-snapshot dari master saat disimpan.
  */
 export async function POST(req: Request) {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(undefined, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

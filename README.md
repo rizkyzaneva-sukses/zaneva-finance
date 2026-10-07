@@ -26,6 +26,8 @@ dan [PRD-zaneva-mutasi.md](PRD-zaneva-mutasi.md) untuk versi lama.
   HPP dikunci saat SO disimpan. Dipakai Laporan: Persediaan di Neraca, dan **599 Selisih HPP**
   (persediaan awal − akhir) di Laba Rugi. File yang salah ditampilkan di pop up per baris, dengan
   Excel baris gagal untuk diperbaiki
+- **Akses per brand** — pengguna bisa ditugaskan ke satu atau lebih brand (menu Pengguna). Akun yang dibatasi hanya
+  melihat dan mengelola rekening milik brand itu; dicek di server. Menu **Brand** untuk menambah/ganti nama brand
 - **Dashboard per brand** — filter Brand di Dashboard (saldo rekening brand itu, cash flow, breakdown), ringkasan laba
   bulan lalu dan bulan berjalan, persediaan terkini, dan tabel perbandingan antar brand
 - **Laporan per brand** — rekening diberi brand; laporan bisa difilter per brand (rekening milik brand
@@ -162,3 +164,6 @@ untuk Dokumen. Container menjalankan `prisma migrate deploy` + seed otomatis saa
 - **SO yang menunggu ACC tetap dihitung** di laporan (sama seperti transaksi menunggu ACC).
 - **Tutup buku Alokasi sebaiknya setelah SO akhir bulan diunggah.** Kalau belum, Selisih HPP belum masuk
   laba; Alokasi memberi peringatan tapi tidak memblokir.
+- **Akun yang dibatasi brand tidak punya Alokasi, Stok & HPP, Kode Akun, dan Brand** (lintas brand, tidak bisa dipotong).
+  Pengguna tanpa penugasan brand = semua brand (sama seperti sebelum fitur ini). Rekening tanpa brand hanya terlihat
+  oleh akun yang tidak dibatasi.

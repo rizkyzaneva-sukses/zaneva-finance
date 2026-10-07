@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
 import { hitungUlangSaldo } from "@/lib/rekap";
+import { bolehRekening } from "@/lib/akses";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -28,6 +29,9 @@ export async function PATCH(req: Request, { params }: Params) {
       },
     });
     if (!lama) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, lama.rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     if (!bolehAksesRekening(auth.user.role, lama.rekening.bank)) {
       return NextResponse.json({ error: "Akses ditolak untuk rekening ini" }, { status: 403 });
     }
@@ -98,6 +102,9 @@ export async function DELETE(_req: Request, { params }: Params) {
       include: { kodeAkun: { select: { kode: true } } },
     });
     if (!lama) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, lama.rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.transaksi.delete({ where: { id } });

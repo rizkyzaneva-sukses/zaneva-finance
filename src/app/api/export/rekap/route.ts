@@ -4,6 +4,7 @@ import { bolehLihatLaporan } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildRekapWorkbook, type BarisRekapExcel } from "@/lib/excel";
 import { filterDariQuery } from "@/lib/filter-transaksi";
+import { batasiTransaksi } from "@/lib/akses";
 import { formatAngka, tanggalKeIso } from "@/lib/utils";
 
 export async function GET(req: Request) {
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
 
   try {
     const sp = new URL(req.url).searchParams;
-    const where = filterDariQuery(sp);
+    const where = batasiTransaksi(filterDariQuery(sp), auth.user);
 
     const transaksi = await prisma.transaksi.findMany({
       where,

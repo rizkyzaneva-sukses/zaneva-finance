@@ -25,6 +25,7 @@ interface Pengguna {
   role: string;
   aktif: boolean;
   createdAt: string;
+  brand: { id: string; nama: string }[];
 }
 
 const OPSI_ROLE = [
@@ -40,9 +41,10 @@ interface FormState {
   username: string;
   password: string;
   role: string | null;
+  brandIds: string[];
 }
 
-const FORM_KOSONG: FormState = { id: null, nama: "", username: "", password: "", role: "STAFF" };
+const FORM_KOSONG: FormState = { id: null, nama: "", username: "", password: "", role: "STAFF", brandIds: [] };
 
 export default function PenggunaPage() {
   const [daftar, setDaftar] = React.useState<Pengguna[]>([]);
@@ -51,6 +53,14 @@ export default function PenggunaPage() {
   const [menyimpan, setMenyimpan] = React.useState(false);
   const [hapusTarget, setHapusTarget] = React.useState<Pengguna | null>(null);
   const [menghapus, setMenghapus] = React.useState(false);
+  const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
+
+  React.useEffect(() => {
+    fetch("/api/brand")
+      .then((r) => (r.ok ? r.json() : { brand: [] }))
+      .then((d) => setDaftarBrand(d.brand))
+      .catch(() => {});
+  }, []);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -79,7 +89,7 @@ export default function PenggunaPage() {
     }
     setMenyimpan(true);
     try {
-      const body: Record<string, unknown> = { nama: form.nama, role: form.role };
+      const body: Record<string, unknown> = { nama: form.nama, role: form.role, brandIds: form.brandIds };
       if (!form.id) {
         body.username = form.username;
         body.password = form.password;
@@ -204,6 +214,25 @@ export default function PenggunaPage() {
               placeholder="Pilih role"
             />
 
+            {form.role !== "OWNER" && (
+              <div className="sm:col-span-2">
+                <SearchableSelect
+                  multiple
+                  label="Akses brand"
+                  value={form.brandIds}
+                  onChange={(v) => setForm({ ...form, brandIds: v })}
+                  options={daftarBrand.map((b) => ({ value: b.id, label: b.nama }))}
+                  placeholder="Semua brand"
+                  emptyText="Belum ada brand. Tambahkan di Master → Brand."
+                />
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                  {form.brandIds.length === 0
+                    ? "Kosong = bisa mengakses semua brand. Pilih satu atau lebih untuk membatasi."
+                    : "Hanya melihat dan mengelola rekening milik brand ini: transaksi, rekap, dokumen, dashboard, dan laporannya. Alokasi, Stok & HPP, Kode Akun, dan Brand tidak tersedia untuk akun yang dibatasi."}
+                </p>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 sm:col-span-2">
               <Button type="button" varian="sekunder" onClick={() => setForm(null)}>
                 Batal
@@ -229,6 +258,7 @@ export default function PenggunaPage() {
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Nama</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Username</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Role</th>
+                  <th className="whitespace-nowrap px-2 py-2 font-medium">Brand</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Dibuat</th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Status</th>
                   <th className="px-2 py-2"></th>
@@ -245,6 +275,19 @@ export default function PenggunaPage() {
                     </td>
                     <td className="whitespace-nowrap px-2 py-2">
                       <Badge warna={p.role === "OWNER" ? "biru" : "abu"}>{p.role}</Badge>
+                    </td>
+                    <td className="px-2 py-2">
+                      {p.role === "OWNER" || p.brand.length === 0 ? (
+                        <span className="text-xs text-gray-600 dark:text-gray-400">Semua brand</span>
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {p.brand.map((b) => (
+                            <Badge key={b.id} warna="biru">
+                              {b.nama}
+                            </Badge>
+                          ))}
+                        </span>
+                      )}
                     </td>
                     <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
                       {formatTanggal(p.createdAt)}
@@ -265,6 +308,7 @@ export default function PenggunaPage() {
                               username: p.username,
                               password: "",
                               role: p.role,
+                              brandIds: p.brand.map((b) => b.id),
                             })
                           }
                           className="rounded p-1.5 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-zinc-700"

@@ -16,6 +16,7 @@ import {
   PiggyBank,
   FolderOpen,
   Package,
+  Tags,
   LogOut,
   Menu,
   X,
@@ -30,6 +31,8 @@ interface MenuItem {
   icon: typeof LayoutDashboard;
   /** Role minimum yang boleh melihat menu ini */
   butuh?: Role[];
+  /** Fitur lintas brand: disembunyikan untuk pengguna yang dibatasi ke brand tertentu */
+  semuaBrand?: boolean;
 }
 
 const SEMUA_KECUALI_BENDAHARA: Role[] = ["OWNER", "ADMIN", "STAFF"];
@@ -39,11 +42,12 @@ const MENU: MenuItem[] = [
   { href: "/rekap", label: "Rekap", icon: FileUp, butuh: SEMUA_KECUALI_BENDAHARA },
   { href: "/transaksi", label: "Transaksi", icon: Table2 },
   { href: "/dokumen", label: "Dokumen", icon: FolderOpen, butuh: SEMUA_KECUALI_BENDAHARA },
-  { href: "/stok", label: "Stok & HPP", icon: Package },
+  { href: "/stok", label: "Stok & HPP", icon: Package, semuaBrand: true },
   { href: "/laporan", label: "Laporan", icon: BookOpenCheck, butuh: SEMUA_KECUALI_BENDAHARA },
-  { href: "/alokasi", label: "Alokasi", icon: PiggyBank, butuh: ["OWNER", "ADMIN"] },
+  { href: "/alokasi", label: "Alokasi", icon: PiggyBank, butuh: ["OWNER", "ADMIN"], semuaBrand: true },
   { href: "/master/rekening", label: "Rekening", icon: Landmark, butuh: ["OWNER", "ADMIN"] },
-  { href: "/master/kode-akun", label: "Kode Akun", icon: ListTree, butuh: ["OWNER", "ADMIN"] },
+  { href: "/master/brand", label: "Brand", icon: Tags, butuh: ["OWNER", "ADMIN"], semuaBrand: true },
+  { href: "/master/kode-akun", label: "Kode Akun", icon: ListTree, butuh: ["OWNER", "ADMIN"], semuaBrand: true },
   { href: "/pengguna", label: "Pengguna", icon: Users, butuh: ["OWNER"] },
   { href: "/log", label: "Log Aktivitas", icon: ScrollText, butuh: ["OWNER"] },
   { href: "/panduan", label: "Panduan", icon: CircleHelp },
@@ -53,6 +57,7 @@ export interface PenggunaProps {
   nama: string;
   username: string;
   role: Role;
+  terbatas?: boolean;
 }
 
 export function AppShell({ user, children }: { user: PenggunaProps; children: React.ReactNode }) {
@@ -62,16 +67,17 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
 
   React.useEffect(() => setDrawerBuka(false), [pathname]);
 
-  const menuTampil = MENU.filter((m) => !m.butuh || m.butuh.includes(user.role));
+  const boleh = (m: MenuItem) => (!m.butuh || m.butuh.includes(user.role)) && !(m.semuaBrand && user.terbatas);
+  const menuTampil = MENU.filter(boleh);
 
   // Membuka halaman terlarang lewat URL langsung → alihkan ke halaman pertama yang boleh.
   // API tetap menolak di server; ini hanya supaya user tidak melihat halaman penuh error.
   React.useEffect(() => {
     const item = MENU.find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`));
-    if (item?.butuh && !item.butuh.includes(user.role)) {
+    if (item && !boleh(item)) {
       router.replace(menuTampil[0]?.href ?? "/panduan");
     }
-  }, [pathname, user.role, router, menuTampil]);
+  }, [pathname, user.role, user.terbatas, router, menuTampil]);
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });

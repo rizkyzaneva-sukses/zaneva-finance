@@ -101,6 +101,20 @@ model User {
   dokumenDiunggah DokumenMutasi[]
   soDiunggah      StokOpname[]        @relation("SoDiunggah")
   soDiAcc         StokOpname[]        @relation("SoDiAcc")
+  /// Brand yang boleh diakses. Kosong = semua brand (OWNER selalu semua).
+  brandAkses      UserBrand[]
+}
+
+/// Penugasan pengguna ke brand. Pengguna yang punya penugasan hanya melihat dan
+/// mengelola data rekening milik brand-brand itu.
+model UserBrand {
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id])
+
+  @@id([userId, brandId])
+  @@index([brandId])
 }
 
 model Rekening {
@@ -331,9 +345,10 @@ model Brand {
   kunci     String   @unique
   createdAt DateTime @default(now())
 
-  rekening Rekening[]
-  produk   Produk[]
-  soItem   StokOpnameItem[]
+  rekening  Rekening[]
+  produk    Produk[]
+  soItem    StokOpnameItem[]
+  penugasan UserBrand[]
 }
 
 /// Master produk: satu SKU satu baris, HPP per unit. Nilai persediaan = stok x HPP.

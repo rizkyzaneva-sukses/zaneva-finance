@@ -4,7 +4,7 @@ import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelolaPengguna } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { Role } from "@/generated/prisma/enums";
+import { AksiAudit, Role } from "@/generated/prisma/enums";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -43,10 +43,45 @@ export async function PATCH(req: Request, { params }: Params) {
       }
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data,
-      select: { id: true, nama: true, username: true, role: true, aktif: true },
+    // Penugasan brand: dikirim sebagai daftar lengkap (mengganti yang lama). OWNER selalu semua brand.
+    const roleAkhir = (data.role as Role | undefined) ?? lama.role;
+    let brandBaru: string[] | null = null;
+    if (roleAkhir === Role.OWNER) brandBaru = [];
+    else if (Array.isArray(body.brandIds)) brandBaru = [...new Set<string>(body.brandIds.map(String))];
+    if (brandBaru && brandBaru.length > 0) {
+      const ada = await prisma.brand.count({ where: { id: { in: brandBaru } } });
+      if (ada !== brandBaru.length) return NextResponse.json({ error: "Ada brand yang tidak valid" }, { status: 400 });
+    }
+    const brandLama = (await prisma.userBrand.findMany({ where: { userId: id }, select: { brandId: true } })).map(
+      (b) => b.brandId
+    );
+
+    const user = await prisma.$transaction(async (tx) => {
+      const hasil = await tx.user.update({
+        where: { id },
+        data,
+        select: { id: true, nama: true, username: true, role: true, aktif: true },
+      });
+      if (brandBaru) {
+        await tx.userBrand.deleteMany({ where: { userId: id } });
+        if (brandBaru.length > 0) {
+          await tx.userBrand.createMany({ data: brandBaru.map((brandId) => ({ userId: id, brandId })) });
+        }
+        const sama = brandLama.length === brandBaru.length && brandLama.every((b) => brandBaru!.includes(b));
+        if (!sama) {
+          await tx.auditLog.create({
+            data: {
+              userId: auth.user.id,
+              entitas: "User",
+              entitasId: id,
+              aksi: AksiAudit.UBAH,
+              dataLama: { username: lama.username, brandIds: brandLama },
+              dataBaru: { username: lama.username, brandIds: brandBaru },
+            },
+          });
+        }
+      }
+      return hasil;
     });
 
     return NextResponse.json({ user });

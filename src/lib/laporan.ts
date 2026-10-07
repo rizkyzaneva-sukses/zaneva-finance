@@ -215,6 +215,8 @@ export interface OpsiLaporan {
   rekeningId: string | null;
   /** Laporan satu brand = rekening milik brand itu + persediaan brand itu. */
   brandId?: string | null;
+  /** Pengguna dibatasi: laporan "semua" hanya mencakup brand-brand ini. null = tanpa batas. */
+  batasBrandIds?: string[] | null;
 }
 
 const PERSEDIAAN_KOSONG: RingkasPersediaan = {
@@ -229,7 +231,7 @@ const PERSEDIAAN_KOSONG: RingkasPersediaan = {
   soTerakhirMenjangkau: false,
 };
 
-export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null }: OpsiLaporan) {
+export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, batasBrandIds = null }: OpsiLaporan) {
   // Cakupan: satu rekening, atau semua rekening milik satu brand, atau semuanya.
   let rekeningIds: string[] | null = rekeningId ? [rekeningId] : null;
   let brandIds: string[] | null = null; // null = persediaan semua brand
@@ -237,6 +239,13 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null }
     const milikBrand = await prisma.rekening.findMany({ where: { brandId }, select: { id: true } });
     rekeningIds = milikBrand.map((r) => r.id);
     brandIds = [brandId];
+  } else if (!rekeningId && batasBrandIds) {
+    const milikBatas = await prisma.rekening.findMany({
+      where: { brandId: { in: batasBrandIds } },
+      select: { id: true },
+    });
+    rekeningIds = milikBatas.map((r) => r.id);
+    brandIds = batasBrandIds;
   }
   // Persediaan tidak bisa dibagi per rekening, jadi hanya muncul di laporan semua/per brand.
   const pakaiPersediaan = !rekeningId;
@@ -265,7 +274,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null }
     }),
     pakaiPersediaan ? hitungPersediaan(dari, sampai, brandIds) : Promise.resolve(PERSEDIAAN_KOSONG),
     prisma.kodeAkun.findUnique({ where: { kode: "599" }, select: { id: true } }),
-    prisma.rekening.count({ where: { brandId: null } }),
+    // Pengguna yang dibatasi tidak perlu tahu soal rekening di luar brand-nya
+    batasBrandIds ? Promise.resolve(0) : prisma.rekening.count({ where: { brandId: null } }),
   ]);
   const P = persediaanHitung;
   // Selisih HPP periode ini = persediaan sebelum periode − persediaan akhir periode.

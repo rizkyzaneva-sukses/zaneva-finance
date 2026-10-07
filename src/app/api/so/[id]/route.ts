@@ -9,7 +9,7 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 
 /** Rincian satu SO per SKU. HPP dan nilai disembunyikan untuk role tanpa akses laporan. */
 export async function GET(_req: Request, { params }: Params) {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(undefined, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -42,7 +42,7 @@ export async function GET(_req: Request, { params }: Params) {
 
 /** ACC SO yang diunggah STAFF/BENDAHARA. */
 export async function PATCH(_req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehAcc);
+  const auth = await wajibLogin(bolehAcc, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -74,7 +74,7 @@ export async function PATCH(_req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehKelola);
+  const auth = await wajibLogin(bolehKelola, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

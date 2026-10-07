@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, Bank } from "@/generated/prisma/enums";
 import { hitungUlangSaldo } from "@/lib/rekap";
+import { bolehBrand, bolehRekening } from "@/lib/akses";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,8 +17,14 @@ export async function PATCH(req: Request, { params }: Params) {
     const { id } = await params;
     const lama = await prisma.rekening.findUnique({ where: { id } });
     if (!lama) return NextResponse.json({ error: "Rekening tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, id)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
 
     const body = await req.json().catch(() => ({}));
+    if (body.brandId !== undefined && !bolehBrand(auth.user, body.brandId ? String(body.brandId) : null)) {
+      return NextResponse.json({ error: "Pilih salah satu brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     const data: Prisma.RekeningUpdateInput = {};
 
     if (typeof body.nama === "string" && body.nama.trim()) data.nama = body.nama.trim();
@@ -65,6 +72,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   try {
     const { id } = await params;
+    if (!bolehRekening(auth.user, id)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     const jumlah = await prisma.transaksi.count({ where: { rekeningId: id } });
     if (jumlah > 0) {
       return NextResponse.json(

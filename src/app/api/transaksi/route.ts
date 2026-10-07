@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { Bank, Role, StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { filterDariQuery } from "@/lib/filter-transaksi";
+import { batasiTransaksi, bolehRekening } from "@/lib/akses";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin();
@@ -15,10 +16,12 @@ export async function GET(req: Request) {
     const sp = new URL(req.url).searchParams;
     const filter = filterDariQuery(sp);
     // BENDAHARA hanya melihat transaksi kas tunai (petty cash), bukan rekening bank.
-    const where: Prisma.TransaksiWhereInput =
+    const where: Prisma.TransaksiWhereInput = batasiTransaksi(
       auth.user.role === Role.BENDAHARA
         ? { AND: [filter, { rekening: { bank: Bank.PETTY_CASH } }] }
-        : filter;
+        : filter,
+      auth.user
+    );
     const halaman = Math.max(1, Number(sp.get("halaman")) || 1);
     const perHalaman = Math.min(200, Math.max(10, Number(sp.get("perHalaman")) || 50));
 
@@ -81,6 +84,9 @@ export async function POST(req: Request) {
     const rekening = await prisma.rekening.findUnique({ where: { id: rekeningId } });
     if (!rekening || !rekening.aktif) {
       return NextResponse.json({ error: "Rekening tidak ditemukan atau nonaktif" }, { status: 404 });
+    }
+    if (!bolehRekening(auth.user, rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
     }
     if (auth.user.role === Role.BENDAHARA && rekening.bank !== Bank.PETTY_CASH) {
       return NextResponse.json(

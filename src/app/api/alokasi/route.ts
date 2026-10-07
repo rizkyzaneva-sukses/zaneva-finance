@@ -17,7 +17,7 @@ const JUMLAH_BULAN = 6;
 
 /** Saldo alokasi per kode + status tutup buku & distribusi tiap bulan. ADMIN/OWNER. */
 export async function GET() {
-  const auth = await wajibLogin(bolehLihatAlokasi);
+  const auth = await wajibLogin(bolehLihatAlokasi, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

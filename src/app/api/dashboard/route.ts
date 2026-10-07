@@ -6,6 +6,7 @@ import { StatusKode } from "@/generated/prisma/enums";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { saldoMeleset } from "@/lib/rekap";
 import { ringkasBulanan, ringkasPerBrand } from "@/lib/dashboard-brand";
+import { batasiTransaksi, bolehBrand, bolehRekening } from "@/lib/akses";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin(bolehLihatLaporan);
@@ -13,7 +14,15 @@ export async function GET(req: Request) {
 
   try {
     const sp = new URL(req.url).searchParams;
-    const where = filterDariQuery(sp);
+    const where = batasiTransaksi(filterDariQuery(sp), auth.user);
+    const rekeningParam = sp.get("rekeningId");
+    const brandParam = sp.get("brandId");
+    if (rekeningParam && !bolehRekening(auth.user, rekeningParam)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
+    if (brandParam && !bolehBrand(auth.user, brandParam)) {
+      return NextResponse.json({ error: "Brand ini di luar yang ditugaskan ke kamu" }, { status: 403 });
+    }
 
     // Brand = semua rekening milik brand itu. Kalau satu rekening dipilih, rekening yang menang.
     const rekeningDipilih = sp.get("rekeningId") || null;
@@ -21,11 +30,18 @@ export async function GET(req: Request) {
     const rekeningBrand = brandId
       ? (await prisma.rekening.findMany({ where: { brandId }, select: { id: true } })).map((r) => r.id)
       : null;
-    if (rekeningBrand) where.rekeningId = { in: rekeningBrand };
+    if (rekeningBrand) {
+      const dan = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [...dan, { rekeningId: { in: rekeningBrand } }];
+    }
 
     const [rekeningAktif, agregat, perKode, rincianRows, belumBeres, semuaDalamFilter, menungguAcc] = await Promise.all([
       prisma.rekening.findMany({
-        where: { aktif: true, ...(rekeningBrand ? { id: { in: rekeningBrand } } : {}) },
+        where: {
+          aktif: true,
+          ...(rekeningBrand ? { id: { in: rekeningBrand } } : {}),
+          ...(auth.user.rekeningIds ? { id: { in: rekeningBrand ?? auth.user.rekeningIds } } : {}),
+        },
         orderBy: [{ urutan: "asc" }, { nama: "asc" }],
         select: { id: true, nama: true, bank: true, saldoAwal: true, brandId: true },
       }),
@@ -157,13 +173,17 @@ export async function GET(req: Request) {
 
     // Ringkasan laba bulanan + persediaan dari mesin Laporan; perbandingan antar brand hanya
     // di tampilan Semua (tanpa filter brand/rekening).
-    const bulanan = await ringkasBulanan(brandId, rekeningDipilih);
+    const bulanan = await ringkasBulanan(brandId, rekeningDipilih, auth.user.brandIds);
     let perBrand = null;
     let rekeningTanpaBrand = 0;
     if (!brandId && !rekeningDipilih) {
       const [daftarBrand, tanpaBrand] = await Promise.all([
-        prisma.brand.findMany({ orderBy: { nama: "asc" }, select: { id: true, nama: true } }),
-        prisma.rekening.count({ where: { aktif: true, brandId: null } }),
+        prisma.brand.findMany({
+          where: auth.user.brandIds ? { id: { in: auth.user.brandIds } } : undefined,
+          orderBy: { nama: "asc" },
+          select: { id: true, nama: true },
+        }),
+        auth.user.brandIds ? Promise.resolve(0) : prisma.rekening.count({ where: { aktif: true, brandId: null } }),
       ]);
       rekeningTanpaBrand = tanpaBrand;
       if (daftarBrand.length > 0) {

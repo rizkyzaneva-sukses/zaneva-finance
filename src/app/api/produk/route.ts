@@ -6,7 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 
 /** Master produk beserta HPP. HPP adalah data biaya, jadi hanya ADMIN/OWNER. */
 export async function GET(req: Request) {
-  const auth = await wajibLogin(bolehKelola);
+  const auth = await wajibLogin(bolehKelola, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

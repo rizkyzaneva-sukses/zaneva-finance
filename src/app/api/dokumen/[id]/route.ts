@@ -4,6 +4,7 @@ import { bolehKelola, bolehRekap } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AksiAudit } from "@/generated/prisma/enums";
 import { bacaFile, ekstensiDariTipe, hapusFileDisk } from "@/lib/dokumen";
+import { bolehRekening } from "@/lib/akses";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -16,6 +17,9 @@ export async function GET(_req: Request, { params }: Params) {
     const { id } = await params;
     const d = await prisma.dokumenMutasi.findUnique({ where: { id } });
     if (!d) return NextResponse.json({ error: "Dokumen tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, d.rekeningId)) {
+      return NextResponse.json({ error: "Dokumen ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     if (d.fileDihapusPada) {
       return NextResponse.json(
         { error: "File sudah dihapus otomatis setelah masa simpan. Unduh ulang mutasinya dari bank." },
@@ -54,6 +58,9 @@ export async function DELETE(_req: Request, { params }: Params) {
       include: { rekening: { select: { nama: true } } },
     });
     if (!d) return NextResponse.json({ error: "Dokumen tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, d.rekeningId)) {
+      return NextResponse.json({ error: "Dokumen ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     if (d.fileDihapusPada) {
       return NextResponse.json({ error: "File ini sudah dihapus sebelumnya" }, { status: 409 });
     }

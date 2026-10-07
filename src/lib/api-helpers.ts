@@ -22,9 +22,17 @@ type HasilAuth = { ok: true; user: PenggunaAktif } | { ok: false; response: Next
  * Gerbang tunggal untuk route handler: pastikan sudah login, dan kalau `izin`
  * diisi, pastikan role-nya lolos. Dicek di server, bukan sekadar disembunyikan di UI.
  */
-export async function wajibLogin(izin?: (role: Role) => boolean): Promise<HasilAuth> {
+export async function wajibLogin(
+  izin?: (role: Role) => boolean,
+  opsi?: { semuaBrand?: boolean }
+): Promise<HasilAuth> {
   const user = await getPenggunaAktif();
   if (!user) return { ok: false, response: unauthorized() };
   if (izin && !izin(user.role)) return { ok: false, response: forbidden() };
+  // Fitur lintas brand (alokasi, stok opname, master produk, kode akun, brand) tidak bisa
+  // dipotong per brand, jadi pengguna yang dibatasi ke brand tertentu ditolak di sini.
+  if (opsi?.semuaBrand && user.brandIds !== null) {
+    return { ok: false, response: forbidden("Fitur ini hanya untuk pengguna yang tidak dibatasi ke brand tertentu") };
+  }
   return { ok: true, user };
 }

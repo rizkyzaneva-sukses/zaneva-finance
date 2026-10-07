@@ -21,9 +21,10 @@ async function ringkasSatuBulan(
   dari: string,
   sampai: string,
   brandId: string | null,
-  rekeningId: string | null
+  rekeningId: string | null,
+  batasBrandIds: string[] | null
 ): Promise<{ bulan: RingkasBulan; persediaan: { dipakai: boolean; adaAwal: boolean; nilai: number; posisi: string | null } }> {
-  const lap = await hitungLaporan({ dari, sampai, rekeningId, brandId });
+  const lap = await hitungLaporan({ dari, sampai, rekeningId, brandId, batasBrandIds });
   return {
     bulan: {
       dari,
@@ -54,11 +55,15 @@ function periodeBulan() {
 }
 
 /** Bulan lalu dan bulan berjalan untuk satu cakupan (semua / satu brand / satu rekening). */
-export async function ringkasBulanan(brandId: string | null, rekeningId: string | null) {
+export async function ringkasBulanan(
+  brandId: string | null,
+  rekeningId: string | null,
+  batasBrandIds: string[] | null = null
+) {
   const p = periodeBulan();
   const [lalu, ini] = await Promise.all([
-    ringkasSatuBulan(p.lalu.dari, p.lalu.sampai, brandId, rekeningId),
-    ringkasSatuBulan(p.ini.dari, p.ini.sampai, brandId, rekeningId),
+    ringkasSatuBulan(p.lalu.dari, p.lalu.sampai, brandId, rekeningId, batasBrandIds),
+    ringkasSatuBulan(p.ini.dari, p.ini.sampai, brandId, rekeningId, batasBrandIds),
   ]);
   return {
     bulanLalu: lalu.bulan,
@@ -74,8 +79,8 @@ export async function ringkasPerBrand(brandIds: string[]) {
   return Promise.all(
     brandIds.map(async (id) => {
       const [lalu, ini] = await Promise.all([
-        ringkasSatuBulan(p.lalu.dari, p.lalu.sampai, id, null),
-        ringkasSatuBulan(p.ini.dari, p.ini.sampai, id, null),
+        ringkasSatuBulan(p.lalu.dari, p.lalu.sampai, id, null, null),
+        ringkasSatuBulan(p.ini.dari, p.ini.sampai, id, null, null),
       ]);
       return {
         brandId: id,

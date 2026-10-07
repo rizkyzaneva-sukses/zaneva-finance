@@ -7,7 +7,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   return (
-    <AppShell user={{ nama: user.nama, username: user.username, role: user.role }}>
+    <AppShell user={{ nama: user.nama, username: user.username, role: user.role, terbatas: user.brandIds !== null }}>
       {children}
     </AppShell>
   );

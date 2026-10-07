@@ -27,7 +27,12 @@ export async function POST(req: Request) {
       // Hanya yang memang masih menunggu — yang sudah disetujui dilewati,
       // jadi menekan tombol dua kali tidak menimpa jejak ACC pertama.
       const menunggu = await tx.transaksi.findMany({
-        where: { id: { in: ids }, statusAcc: StatusAcc.MENUNGGU },
+        where: {
+          id: { in: ids },
+          statusAcc: StatusAcc.MENUNGGU,
+          // Pengguna yang dibatasi brand hanya bisa meng-ACC transaksi rekening brand-nya
+          ...(auth.user.rekeningIds ? { rekeningId: { in: auth.user.rekeningIds } } : {}),
+        },
         select: { id: true },
       });
       if (menunggu.length === 0) return { disahkan: 0 };

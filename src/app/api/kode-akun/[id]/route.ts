@@ -9,7 +9,7 @@ import { bacaPersenAlokasi } from "@/lib/split";
 type Params = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehKelola);
+  const auth = await wajibLogin(bolehKelola, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -97,7 +97,7 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const auth = await wajibLogin(bolehKelola);
+  const auth = await wajibLogin(bolehKelola, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

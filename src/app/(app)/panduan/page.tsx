@@ -356,6 +356,21 @@ const QNA: { kategori: string; t: string; j: string }[] = [
     j: "Di Laporan pilih Brand. Isinya rekening yang diberi brand itu (atur di menu Rekening) ditambah persediaan brand itu. Rekening tanpa brand hanya muncul di Semua brand. Laporan per satu rekening tidak menampilkan persediaan.",
   },
   {
+    kategori: "Brand",
+    t: "Di mana menambah brand?",
+    j: "Menu Brand (OWNER dan ADMIN yang tidak dibatasi). Brand juga otomatis dibuat saat unggah master produk, tapi dengan persetujuan di pop up. Mengganti nama brand tidak merusak data lama. Brand yang sudah dipakai rekening, produk, SO, atau pengguna tidak bisa dihapus.",
+  },
+  {
+    kategori: "Brand",
+    t: "Bagaimana membatasi seorang pengguna ke brand tertentu?",
+    j: "Menu Pengguna → Ubah → Akses brand, pilih satu atau lebih brand (OWNER saja yang bisa). Kosong berarti semua brand. Akun yang dibatasi hanya melihat dan mengelola rekening milik brand itu: transaksi, rekap, dokumen, dashboard, laporan, dan export. Pembatasan dicek di server dan langsung berlaku tanpa login ulang. Perubahannya tercatat di Log Aktivitas.",
+  },
+  {
+    kategori: "Brand",
+    t: "Fitur apa yang tidak tersedia untuk akun yang dibatasi brand?",
+    j: "Alokasi, Stok & HPP (SO dan master produk), Kode Akun, dan Brand, karena semuanya lintas brand dan tidak bisa dipotong per brand. Nilai persediaan brand mereka tetap terlihat di Laporan dan Dashboard. OWNER selalu melihat semua brand.",
+  },
+  {
     kategori: "Alokasi",
     t: "Pengeluaran dari kode alokasi (Zakat, Santunan, dll.) muncul di mana di Laporan?",
     j: "Di Neraca dan Perubahan Modal sebagai pengurang ekuitas, dan di Arus Kas sebagai Pendanaan. Tidak masuk Laba Rugi, jadi tidak mengurangi laba yang menjadi dasar alokasi bulan berikutnya. Rincian saldo tiap alokasi (jatah dikurangi pemakaian) ada di halaman Alokasi. Kalau ingin perlakuan lain, ubah kolom Masuk laporan dan Arus kas pada kode itu di Kode Akun.",

@@ -10,7 +10,7 @@ import { hariIniWib } from "@/lib/alokasi";
  * (dengan HPP saat ini, untuk mass edit) + STOK SO; role lain hanya STOK SO tanpa HPP.
  */
 export async function GET() {
-  const auth = await wajibLogin();
+  const auth = await wajibLogin(undefined, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

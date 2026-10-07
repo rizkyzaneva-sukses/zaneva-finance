@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehRekap } from "@/lib/auth";
+import { bolehRekening } from "@/lib/akses";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import {
@@ -29,7 +30,11 @@ export async function GET(req: Request) {
 
     const where: Prisma.DokumenMutasiWhereInput = {};
     const rekeningId = sp.get("rekeningId");
-    if (rekeningId) where.rekeningId = rekeningId;
+    const batas = auth.user.rekeningIds;
+    if (batas) {
+      // Dibatasi brand: hanya rekening miliknya; rekening di luar itu dianggap tidak ada isinya
+      where.rekeningId = rekeningId ? (batas.includes(rekeningId) ? rekeningId : "-") : { in: batas };
+    } else if (rekeningId) where.rekeningId = rekeningId;
     const periode = sp.get("periode");
     if (periode && /^\d{4}-\d{2}$/.test(periode)) where.periode = periode;
     const status = sp.get("status");
@@ -90,6 +95,9 @@ export async function POST(req: Request) {
     const rekening = await prisma.rekening.findUnique({ where: { id: rekeningId } });
     if (!rekening || !rekening.aktif) {
       return NextResponse.json({ error: "Rekening tidak ditemukan atau nonaktif" }, { status: 404 });
+    }
+    if (!bolehRekening(auth.user, rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
     }
 
     // Validasi SEMUA file dulu sebelum menulis satu pun, supaya satu file jelek

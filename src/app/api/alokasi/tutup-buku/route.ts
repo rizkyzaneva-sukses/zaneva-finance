@@ -11,7 +11,7 @@ import { bulanSudahBerakhir, bulanValid, labaBulan } from "@/lib/alokasi";
  * dan disimpan sebagai snapshot — tidak pernah dipercaya dari klien.
  */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehTutupBuku);
+  const auth = await wajibLogin(bolehTutupBuku, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
 
 /** Buka kembali bulan yang sudah disahkan — hanya kalau belum ada distribusinya. */
 export async function DELETE(req: Request) {
-  const auth = await wajibLogin(bolehTutupBuku);
+  const auth = await wajibLogin(bolehTutupBuku, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

@@ -7,6 +7,10 @@ export interface PenggunaAktif {
   nama: string;
   username: string;
   role: Role;
+  /** Brand yang ditugaskan. null = tidak dibatasi (OWNER, atau belum ada penugasan). */
+  brandIds: string[] | null;
+  /** Rekening milik brand-brand itu. null = semua rekening. */
+  rekeningIds: string[] | null;
 }
 
 /**
@@ -23,7 +27,20 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
   });
   if (!user || !user.aktif) return null;
 
-  return { id: user.id, nama: user.nama, username: user.username, role: user.role };
+  // Pembatasan brand: OWNER selalu penuh. Pengguna lain tanpa penugasan = semua brand
+  // (sama seperti sebelum fitur ini ada); dengan penugasan = hanya brand-brand itu.
+  let brandIds: string[] | null = null;
+  let rekeningIds: string[] | null = null;
+  if (user.role !== Role.OWNER) {
+    const tugas = await prisma.userBrand.findMany({ where: { userId: user.id }, select: { brandId: true } });
+    if (tugas.length > 0) {
+      brandIds = tugas.map((t) => t.brandId);
+      const rek = await prisma.rekening.findMany({ where: { brandId: { in: brandIds } }, select: { id: true } });
+      rekeningIds = rek.map((r) => r.id);
+    }
+  }
+
+  return { id: user.id, nama: user.nama, username: user.username, role: user.role, brandIds, rekeningIds };
 }
 
 /*

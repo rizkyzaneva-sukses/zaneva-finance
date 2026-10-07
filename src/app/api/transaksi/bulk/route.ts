@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { validasiRincian, type RincianBersih, type RincianMasuk } from "@/lib/split";
+import { bolehRekening } from "@/lib/akses";
 
 interface BarisMasuk {
   tanggalIso: string;
@@ -43,6 +44,10 @@ export async function POST(req: Request) {
     const rekening = await prisma.rekening.findUnique({ where: { id: rekeningId } });
     if (!rekening || !rekening.aktif) {
       return NextResponse.json({ error: "Rekening tidak ditemukan atau nonaktif" }, { status: 404 });
+    }
+
+    if (!bolehRekening(auth.user, rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
     }
 
     const tanpaTanggal = baris.filter((b) => !b.tanggalIso);

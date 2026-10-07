@@ -13,7 +13,7 @@ import { analisaMaster } from "@/lib/stok-impor";
  *   mode=terapkan → menyimpan baris yang valid. Brand baru hanya dibuat kalau setujuBrandBaru=true.
  */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehKelola);
+  const auth = await wajibLogin(bolehKelola, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

@@ -14,7 +14,7 @@ const labelPeriode = (tahun: number, bulan: number) => `${tahun}-${String(bulan)
  * supaya yang dibagikan persis angka yang disetujui OWNER.
  */
 export async function POST(req: Request) {
-  const auth = await wajibLogin(bolehDistribusiAlokasi);
+  const auth = await wajibLogin(bolehDistribusiAlokasi, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {
@@ -99,7 +99,7 @@ export async function POST(req: Request) {
 
 /** Batalkan distribusi yang sudah disahkan. Hanya OWNER; jatahnya hilang dari saldo alokasi. */
 export async function DELETE(req: Request) {
-  const auth = await wajibLogin(bolehBatalkanDistribusi);
+  const auth = await wajibLogin(bolehBatalkanDistribusi, { semuaBrand: true });
   if (!auth.ok) return auth.response;
 
   try {

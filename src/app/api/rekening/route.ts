@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelola } from "@/lib/auth";
+import { bolehBrand } from "@/lib/akses";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { Bank, Role } from "@/generated/prisma/enums";
@@ -12,7 +13,10 @@ export async function GET() {
   try {
     const rekening = await prisma.rekening.findMany({
       // BENDAHARA hanya perlu (dan boleh) melihat kas tunai
-      where: auth.user.role === Role.BENDAHARA ? { bank: Bank.PETTY_CASH } : undefined,
+      where: {
+        ...(auth.user.role === Role.BENDAHARA ? { bank: Bank.PETTY_CASH } : {}),
+        ...(auth.user.rekeningIds ? { id: { in: auth.user.rekeningIds } } : {}),
+      },
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
       include: { _count: { select: { transaksi: true } }, brand: { select: { id: true, nama: true } } },
     });
@@ -38,6 +42,11 @@ export async function POST(req: Request) {
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggalSaldoAwal)) {
       return NextResponse.json({ error: "Tanggal saldo awal wajib diisi" }, { status: 400 });
+    }
+
+    // Pengguna yang dibatasi brand hanya boleh membuat rekening untuk brand miliknya
+    if (!bolehBrand(auth.user, body.brandId ? String(body.brandId) : null)) {
+      return NextResponse.json({ error: "Pilih salah satu brand yang ditugaskan ke kamu" }, { status: 403 });
     }
 
     const sudahAda = await prisma.rekening.findUnique({ where: { nama } });

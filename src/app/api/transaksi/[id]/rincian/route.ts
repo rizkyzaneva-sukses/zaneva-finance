@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
 import { validasiRincian } from "@/lib/split";
+import { bolehRekening } from "@/lib/akses";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -24,6 +25,9 @@ export async function PUT(req: Request, { params }: Params) {
       include: { rincian: { orderBy: { urutan: "asc" } }, rekening: { select: { bank: true } } },
     });
     if (!induk) return NextResponse.json({ error: "Transaksi tidak ditemukan" }, { status: 404 });
+    if (!bolehRekening(auth.user, induk.rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     if (!bolehAksesRekening(auth.user.role, induk.rekening.bank)) {
       return NextResponse.json({ error: "Akses ditolak untuk rekening ini" }, { status: 403 });
     }
