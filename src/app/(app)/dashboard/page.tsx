@@ -394,8 +394,9 @@ export default function DashboardPage() {
             >
               <ListChecks className="h-4 w-4 shrink-0" />
               <span>
-                <strong>{data.menungguAcc} transaksi menunggu ACC</strong> — hasil kerja STAFF atau
-                Bendahara yang belum disahkan. Transaksinya tetap dihitung di laporan.
+                <strong>{data.menungguAcc} transaksi menunggu ACC</strong> — hasil kerja STAFF/Bendahara
+                (verifikasi Bendahara) dan koreksi kode/catatan/split (finalisasi Finance). Transaksinya
+                tetap dihitung di laporan.
               </span>
             </Link>
           )}

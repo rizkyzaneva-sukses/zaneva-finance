@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { statusAccUntuk } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { Bank, Role, StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { batasiTransaksi, bolehRekening } from "@/lib/akses";
+import { fieldAccUntukInput } from "@/lib/acc";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin();
@@ -110,7 +110,8 @@ export async function POST(req: Request) {
           statusKode: body.kodeAkunId ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           sumber: Sumber.MANUAL,
           dedupeHash: buatDedupeHash({ tanggalIso, uangMasuk, uangKeluar, keterangan }),
-          statusAcc: statusAccUntuk(auth.user.role),
+          // Petty cash oleh bendahara/staff langsung DISETUJUI; sisanya ikut aturan role.
+          ...fieldAccUntukInput(auth.user, rekening.bank),
           createdById: auth.user.id,
         },
       });

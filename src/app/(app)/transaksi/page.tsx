@@ -40,7 +40,7 @@ interface Transaksi {
   saldoBank: string | null;
   catatan: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
-  statusAcc: "DISETUJUI" | "MENUNGGU";
+  statusAcc: "DISETUJUI" | "MENUNGGU" | "PERLU_FINANCE";
   accOleh: { nama: string } | null;
   yakin: boolean;
   rekening: { id: string; nama: string };
@@ -95,7 +95,10 @@ function TransaksiIsi() {
   const [formManual, setFormManual] = React.useState<FormManual | null>(null);
   const [menyimpanManual, setMenyimpanManual] = React.useState(false);
 
-  const bolehAcc = role === "ADMIN" || role === "OWNER";
+  // ACC berjenjang: Bendahara memverifikasi input staff (MENUNGGU);
+  // Finance (ADMIN/OWNER) memfinalkan koreksi kode/catatan/split (PERLU_FINANCE).
+  const bisaAccBendahara = role === "ADMIN" || role === "OWNER" || role === "BENDAHARA";
+  const bisaAccFinance = role === "ADMIN" || role === "OWNER";
   const bolehHapus = role === "ADMIN" || role === "OWNER";
   const bolehExport = role !== null && role !== "BENDAHARA";
 
@@ -191,8 +194,10 @@ function TransaksiIsi() {
             : t
         )
       );
-      if (data.transaksi.statusAcc === "MENUNGGU") {
+      if (data.transaksi.statusAcc === "PERLU_FINANCE") {
         toast.info("Perubahan tersimpan, menunggu ACC Finance");
+      } else if (data.transaksi.statusAcc === "MENUNGGU") {
+        toast.info("Perubahan tersimpan, menunggu ACC Bendahara");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
@@ -200,18 +205,25 @@ function TransaksiIsi() {
     }
   }
 
-  async function setujui(ids: string[]) {
+  async function setujui(ids: string[], tahap?: "bendahara" | "finance") {
     if (ids.length === 0) return;
     setMenyetujui(true);
     try {
       const res = await fetch("/api/transaksi/acc", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify(tahap ? { ids, tahap } : { ids }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success(`${data.disahkan} transaksi disahkan`);
+      if (data.disahkan === 0 && data.ditolak > 0) {
+        toast.error("Tidak punya wewenang menyetujui transaksi ini");
+      } else {
+        toast.success(
+          `${data.disahkan} transaksi disahkan` +
+            (data.ditolak > 0 ? ` (${data.ditolak} perlu wewenang Finance)` : "")
+        );
+      }
       muat();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal mengesahkan");
@@ -251,7 +263,7 @@ function TransaksiIsi() {
       if (!res.ok) throw new Error(data.error);
       toast.success(
         data.transaksi.statusAcc === "MENUNGGU"
-          ? "Transaksi tersimpan, menunggu ACC Finance"
+          ? "Transaksi tersimpan, menunggu ACC Bendahara"
           : "Transaksi tersimpan"
       );
       setFormManual(null);
@@ -453,18 +465,32 @@ function TransaksiIsi() {
               <span className="text-xs text-gray-600 dark:text-gray-400">
                 {total} transaksi · halaman {halaman} dari {totalHalaman}
               </span>
-              {bolehAcc && daftar.some((t) => t.statusAcc === "MENUNGGU") && (
-                <Button
-                  varian="sekunder"
-                  loading={menyetujui}
-                  onClick={() =>
-                    setujui(daftar.filter((t) => t.statusAcc === "MENUNGGU").map((t) => t.id))
-                  }
-                >
-                  <CheckCheck className="h-4 w-4" />
-                  Setujui {daftar.filter((t) => t.statusAcc === "MENUNGGU").length} di halaman ini
-                </Button>
-              )}
+              <div className="flex flex-wrap gap-2">
+                {bisaAccBendahara && daftar.some((t) => t.statusAcc === "MENUNGGU") && (
+                  <Button
+                    varian="sekunder"
+                    loading={menyetujui}
+                    onClick={() =>
+                      setujui(daftar.filter((t) => t.statusAcc === "MENUNGGU").map((t) => t.id), "bendahara")
+                    }
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                    Verifikasi {daftar.filter((t) => t.statusAcc === "MENUNGGU").length} (Bendahara)
+                  </Button>
+                )}
+                {bisaAccFinance && daftar.some((t) => t.statusAcc === "PERLU_FINANCE") && (
+                  <Button
+                    varian="sekunder"
+                    loading={menyetujui}
+                    onClick={() =>
+                      setujui(daftar.filter((t) => t.statusAcc === "PERLU_FINANCE").map((t) => t.id), "finance")
+                    }
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                    Finalkan {daftar.filter((t) => t.statusAcc === "PERLU_FINANCE").length} (Finance)
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -498,11 +524,22 @@ function TransaksiIsi() {
                         {t.statusAcc === "MENUNGGU" && (
                           <div
                             className="mt-1"
-                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, belum disahkan Finance`}
+                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, menunggu verifikasi Bendahara`}
                           >
                             <Badge warna="biru">
                               <Clock className="mr-1 inline h-3 w-3" />
-                              Menunggu ACC
+                              ACC Bendahara
+                            </Badge>
+                          </div>
+                        )}
+                        {t.statusAcc === "PERLU_FINANCE" && (
+                          <div
+                            className="mt-1"
+                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, sudah diverifikasi Bendahara — menunggu finalisasi Finance`}
+                          >
+                            <Badge warna="kuning">
+                              <Clock className="mr-1 inline h-3 w-3" />
+                              Perlu ACC Finance
                             </Badge>
                           </div>
                         )}
@@ -566,14 +603,26 @@ function TransaksiIsi() {
                         />
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right">
-                        {bolehAcc && t.statusAcc === "MENUNGGU" && (
+                        {t.statusAcc === "MENUNGGU" && bisaAccBendahara && (
                           <button
                             type="button"
-                            title="Setujui (ACC)"
-                            aria-label="Setujui transaksi ini"
+                            title="Verifikasi (ACC Bendahara)"
+                            aria-label="Verifikasi transaksi ini"
                             disabled={menyetujui}
-                            onClick={() => setujui([t.id])}
+                            onClick={() => setujui([t.id], "bendahara")}
                             className="rounded p-1.5 text-green-700 hover:bg-green-50 disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-900/30"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                        )}
+                        {t.statusAcc === "PERLU_FINANCE" && bisaAccFinance && (
+                          <button
+                            type="button"
+                            title="Finalkan (ACC Finance)"
+                            aria-label="Finalisasi transaksi ini"
+                            disabled={menyetujui}
+                            onClick={() => setujui([t.id], "finance")}
+                            className="rounded p-1.5 text-amber-700 hover:bg-amber-50 disabled:opacity-50 dark:text-amber-400 dark:hover:bg-amber-900/30"
                           >
                             <Check className="h-4 w-4" />
                           </button>
@@ -664,7 +713,7 @@ function TransaksiIsi() {
         judul="Tambah Transaksi Manual"
         deskripsi={
           role === "STAFF" || role === "BENDAHARA"
-            ? "Transaksi akan berstatus Menunggu ACC sampai disahkan Finance."
+            ? "Transaksi ke rekening bank akan berstatus Menunggu ACC Bendahara. Input ke petty cash langsung masuk tanpa ACC."
             : "Untuk transaksi yang tidak ada di mutasi bank, mis. kas tunai atau penyesuaian."
         }
         onTutup={() => setFormManual(null)}

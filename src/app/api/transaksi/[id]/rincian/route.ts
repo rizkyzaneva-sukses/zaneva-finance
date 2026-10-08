@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehAksesRekening, dataAccUntukPerubahan } from "@/lib/acc";
+import { bolehAksesRekening, fieldAccUntukPerubahan } from "@/lib/acc";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
@@ -70,7 +70,8 @@ export async function PUT(req: Request, { params }: Params) {
           kodeAkun: { disconnect: true },
           statusKode: rincianBaru.length > 0 ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           updatedBy: { connect: { id: auth.user.id } },
-          ...dataAccUntukPerubahan(auth.user),
+          // Split menyentuh struktur kode akun → selalu wajib ACC finance.
+          ...fieldAccUntukPerubahan(auth.user, true),
         },
       });
 

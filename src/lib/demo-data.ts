@@ -293,6 +293,15 @@ export async function isiDummy() {
           role: Role.ADMIN,
         },
       });
+      // Bendahara demo: memegang petty cash & memverifikasi input staff (ACC tahap 1).
+      await tx.user.create({
+        data: {
+          nama: `${MARK} Bendahara Demo`,
+          username: "demo.bendahara",
+          passwordHash: pwHash,
+          role: Role.BENDAHARA,
+        },
+      });
 
       // ── Rekening pusat + kas kecil ──────────────────────────
       const pusat = await tx.rekening.create({
@@ -397,6 +406,8 @@ export async function isiDummy() {
           if (idx === 2) {
             push(iso(b.yy, b.mm, 20), "621", "BEBAN OPERASIONAL (INPUT STAFF)", 0, 350_000, { acc: StatusAcc.MENUNGGU });
             push(iso(b.yy, b.mm, 21), "613", "ONGKOS EKSPEDISI (INPUT STAFF)", 0, 250_000, { acc: StatusAcc.MENUNGGU });
+            // Sudah diverifikasi Bendahara, menunggu finalisasi Finance (koreksi kode akun).
+            push(iso(b.yy, b.mm, 22), "605", "KOREKSI KODE OLEH STAFF — PERLU FINANCE", 0, 175_000, { acc: StatusAcc.PERLU_FINANCE });
           }
         });
 

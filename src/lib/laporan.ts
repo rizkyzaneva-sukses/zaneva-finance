@@ -264,7 +264,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
     // ditampilkan supaya pembaca tahu bagian mana yang belum final.
     prisma.transaksi.count({
       where: {
-        statusAcc: "MENUNGGU",
+        statusAcc: { in: ["MENUNGGU", "PERLU_FINANCE"] },
         tanggal: {
           gte: new Date(`${dari}T00:00:00.000Z`),
           lte: new Date(`${sampai}T00:00:00.000Z`),

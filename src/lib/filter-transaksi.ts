@@ -1,5 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
-import { StatusKode } from "@/generated/prisma/enums";
+import { StatusAcc, StatusKode } from "@/generated/prisma/enums";
 
 /** Filter transaksi dari query string — dipakai bareng oleh list, export, dan dashboard. */
 export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput {
@@ -29,7 +29,7 @@ export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput
     });
   }
 
-  if (sp.get("menungguAcc") === "1") where.statusAcc = "MENUNGGU";
+  if (sp.get("menungguAcc") === "1") where.statusAcc = { in: [StatusAcc.MENUNGGU, StatusAcc.PERLU_FINANCE] };
 
   const dari = sp.get("dari");
   const sampai = sp.get("sampai");

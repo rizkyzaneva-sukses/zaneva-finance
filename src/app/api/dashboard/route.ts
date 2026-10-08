@@ -81,7 +81,7 @@ export async function GET(req: Request) {
         orderBy: { tanggal: "asc" },
       }),
       // Antrean ACC: transaksi hasil kerja STAFF/BENDAHARA yang belum disahkan
-      prisma.transaksi.count({ where: { ...where, statusAcc: "MENUNGGU" } }),
+      prisma.transaksi.count({ where: { ...where, statusAcc: { in: ["MENUNGGU", "PERLU_FINANCE"] } } }),
     ]);
 
     // Saldo & status rekonsiliasi tiap rekening: ambil transaksi terakhirnya.

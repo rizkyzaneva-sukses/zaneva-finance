@@ -31,11 +31,14 @@ enum Bank {
 enum StatusAcc {
   /// Dibuat/diubah oleh ADMIN atau OWNER — langsung final, tidak perlu ACC.
   DISETUJUI
-  /// Dibuat/diubah oleh STAFF atau BENDAHARA — perlu dikonfirmasi ADMIN/OWNER.
+  /// Dibuat/diubah oleh STAFF/BENDAHARA — menunggu verifikasi BENDAHARA dulu.
   /// Transaksi tetap dihitung di laporan selama menunggu — uangnya sudah
   /// benar-benar berpindah di bank, yang menunggu adalah pengesahan
   /// pencatatannya, bukan keberadaan transaksinya.
   MENUNGGU
+  /// Sudah diverifikasi BENDAHARA, tapi menyentuh kode akun / catatan / split —
+  /// harus difinalkan FINANCE (ADMIN/OWNER) sebelum dianggap sah.
+  PERLU_FINANCE
 }
 
 enum Kelompok {

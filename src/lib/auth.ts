@@ -49,7 +49,8 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
  *                              OWNER  ADMIN  STAFF  BENDAHARA
  *  Rekap (upload mutasi bank)    ✓      ✓      ✓       —
  *  Koreksi / input manual        ✓      ✓      ✓*      ✓*      (* butuh ACC)
- *  ACC koreksi                   ✓      ✓      —       —
+ *  ACC tahap 1 (verifikasi)      ✓      ✓      —       ✓
+ *  ACC final (finance)           ✓      ✓      —       —
  *  Hapus transaksi, master data  ✓      ✓      —       —
  *  Dashboard & Laporan           ✓      ✓      ✓       —
  *  Kelola pengguna, lihat Log    ✓      —      —       —
@@ -65,18 +66,36 @@ export function bolehInput(): boolean {
   return true;
 }
 
-/** Perubahan oleh role ini perlu disahkan ADMIN/OWNER sebelum final. */
+/** Perubahan oleh role ini perlu disahkan sebelum final. */
 export function butuhAcc(role: Role): boolean {
   return role === Role.STAFF || role === Role.BENDAHARA;
 }
 
+/**
+ * Status ACC awal saat sebuah transaksi dibuat/diubah.
+ *
+ * - ADMIN/OWNER (Finance): langsung DISETUJUI — menginput berarti memutuskan.
+ * - BENDAHARA/STAFF: MENUNGGU verifikasi Bendahara.
+ *
+ * Pengecualian petty cash & koreksi kode/catatan/split diatur di lib/acc.ts.
+ */
 export function statusAccUntuk(role: Role): StatusAcc {
   return butuhAcc(role) ? StatusAcc.MENUNGGU : StatusAcc.DISETUJUI;
 }
 
-/** Boleh mengesahkan pekerjaan STAFF/BENDAHARA. */
-export function bolehAcc(role: Role): boolean {
+/** ACC tahap 1: verifikasi pekerjaan STAFF/STAF oleh BENDAHARA (atau Finance langsung). */
+export function bolehAccBendahara(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER || role === Role.BENDAHARA;
+}
+
+/** ACC final (Finance): menyelesaikan koreksi kode/catatan/split. ADMIN = Finance. */
+export function bolehAccFinance(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER;
+}
+
+/** Boleh mengesahkan pekerjaan STAFF/BENDAHARA (tahap mana pun). */
+export function bolehAcc(role: Role): boolean {
+  return bolehAccBendahara(role);
 }
 
 /** Boleh hapus transaksi dan kelola master data (rekening, kode akun). */

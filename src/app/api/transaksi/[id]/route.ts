@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelola } from "@/lib/auth";
-import { bolehAksesRekening, dataAccUntukPerubahan } from "@/lib/acc";
+import { bolehAksesRekening, fieldAccUntukPerubahan } from "@/lib/acc";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
@@ -37,9 +37,12 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     const body = await req.json().catch(() => ({}));
+    // Koreksi kode akun / catatan dianggap menyentuh hal penting → wajib ACC finance.
+    // Koreksi biasa (mis. `yakin`) cukup diverifikasi bendahara.
+    const sentuhPenting = "kodeAkunId" in body || "catatan" in body;
     const data: Prisma.TransaksiUpdateInput = {
       updatedBy: { connect: { id: auth.user.id } },
-      ...dataAccUntukPerubahan(auth.user),
+      ...fieldAccUntukPerubahan(auth.user, sentuhPenting),
     };
 
     if ("kodeAkunId" in body && lama._count.rincian > 0) {

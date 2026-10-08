@@ -137,8 +137,9 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Simpan ke Rekap",
         isi: (
           <>
-            Transaksi tersimpan dengan status <Badge warna="biru">Menunggu ACC</Badge> sampai Finance mengesahkan. Baris yang
-            dianggap duplikat tidak hilang diam-diam: ia ditahan di layar dengan tombol <strong>Tetap masukkan</strong>.
+            Transaksi tersimpan dengan status <Badge warna="biru">ACC Bendahara</Badge> sampai diverifikasi. Koreksi kode, catatan, atau
+            split setelah itu diteruskan ke Finance (badge kuning). Baris yang dianggap duplikat tidak hilang diam-diam: ia
+            ditahan di layar dengan tombol <strong>Tetap masukkan</strong>.
           </>
         ),
       },
@@ -159,13 +160,14 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
     ringkas: "Memastikan pekerjaan tim benar, lalu membagikan alokasi dari laba.",
     langkah: [
       {
-        judul: "Sahkan pekerjaan STAFF dan Bendahara",
+        judul: "Sahkan pekerjaan tim (berjenjang)",
         isi: (
           <>
             Di <Tautan href="/dashboard">Dashboard</Tautan> (kelompok Operasional) ada banner &quot;menunggu ACC&quot;. Klik untuk membuka{" "}
-            <Tautan href="/transaksi?menungguAcc=1">daftarnya</Tautan>, periksa, lalu klik centang per baris atau{" "}
-            <strong>Setujui semua di halaman ini</strong>. Kalau ada yang salah, cukup ubah sendiri: perubahan oleh Finance otomatis
-            disahkan.
+            <Tautan href="/transaksi?menungguAcc=1">daftarnya</Tautan>. Bendahara memverifikasi input staff (badge biru); koreksi
+            kode/catatan/split diteruskan untuk finalisasi Finance (badge kuning). Lingkupmu:{" "}
+            <strong>klik centang per baris</strong> atau <strong>Verifikasi/Finalkan semua di halaman ini</strong>. Kalau ada yang salah,
+            cukup ubah sendiri: perubahan oleh Finance otomatis disahkan.
           </>
         ),
       },
@@ -208,11 +210,11 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         isi: "Pilih Uang keluar untuk belanja, Uang masuk untuk isi ulang kas. Kode akun boleh dikosongkan dulu kalau belum tahu, Finance bisa melengkapinya.",
       },
       {
-        judul: "Tunggu ACC",
+        judul: "Langsung masuk (tanpa ACC)",
         isi: (
           <>
-            Transaksi berstatus <Badge warna="biru">Menunggu ACC</Badge> sampai disahkan Finance. Saldo kas langsung berubah, karena
-            uangnya memang sudah keluar.
+            Transaksi petty cash yang kamu catat <strong>langsung disetujui</strong> — tidak perlu menunggu ACC. Saldo
+            kas langsung berubah, karena uangnya memang sudah keluar. ACC hanya berlaku untuk rekening bank.
           </>
         ),
       },
@@ -328,18 +330,28 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   },
   {
     kategori: "ACC",
-    t: "Apa arti badge \"Menunggu ACC\"? Apakah transaksinya tetap dihitung?",
-    j: "Artinya hasil kerja STAFF atau Bendahara itu belum disahkan Finance. Transaksinya tetap dihitung di Laporan, karena uangnya sudah benar-benar berpindah di rekening. Yang menunggu adalah pengesahan pencatatannya, terutama kode akunnya, jadi rincian per akun di laporan masih bisa berubah. Jumlahnya ditampilkan di Dashboard dan Laporan.",
+    t: "Bagaimana alur ACC yang berlaku sekarang?",
+    j: "Berjenjang. Koreksi dari STAFF masuk berstatus \"ACC Bendahara\". Bila koreksi itu menyentuh kode akun, catatan, atau split, setelah diverifikasi Bendahara statusnya naik jadi \"Perlu ACC Finance\" untuk difinalkan ADMIN/OWNER. Koreksi ringan (mis. tanda yakin) cukup sampai verifikasi Bendahara. Yang bukan koreksi (mis. input bank biasa) hanya lewat satu tahap: verifikasi Bendahara.",
+  },
+  {
+    kategori: "ACC",
+    t: "Apakah input petty cash perlu ACC?",
+    j: "Tidak. Transaksi manual ke rekening berjenis Petty Cash langsung disetujui (tersimpan final) — ini kas kecil operasional. ACC berjenjang hanya untuk rekening bank.",
+  },
+  {
+    kategori: "ACC",
+    t: "Apakah transaksi yang menunggu ACC tetap dihitung?",
+    j: "Ya. Baik \"ACC Bendahara\" maupun \"Perlu ACC Finance\", transaksinya tetap dihitung di Laporan — uangnya sudah benar-benar berpindah di rekening. Yang menunggu adalah pengesahan pencatatannya (terutama kode akunnya), jadi rincian per akun di laporan masih bisa berubah. Jumlahnya ditampilkan di Dashboard dan Laporan.",
   },
   {
     kategori: "ACC",
     t: "Kalau STAFF mengubah transaksi yang sudah disetujui, apa yang terjadi?",
-    j: "Statusnya kembali ke Menunggu ACC, karena isinya sudah berubah dari yang disahkan. Sebaliknya, kalau ADMIN atau OWNER yang mengubah, langsung berstatus disetujui.",
+    j: "Jejak ACC lama dihapus dan statusnya dihitung ulang: koreksi kode/catatan/split → Perlu ACC Finance; koreksi ringan → ACC Bendahara. Kalau ADMIN atau OWNER yang mengubah, langsung berstatus disetujui.",
   },
   {
     kategori: "ACC",
     t: "Apa bedanya \"belum beres\" dan \"menunggu ACC\"?",
-    j: "Belum beres berarti isinya belum lengkap: kode akun kosong, masih saran AI, atau AI ragu membacanya. Menunggu ACC berarti isinya sudah ada tapi belum disahkan Finance. Dua filter terpisah di halaman Transaksi.",
+    j: "Belum beres berarti isinya belum lengkap: kode akun kosong, masih saran AI, atau AI ragu membacanya. Menunggu ACC berarti isinya sudah ada tapi belum disahkan (Bendahara/Finance). Dua filter terpisah di halaman Transaksi; filter \"menunggu ACC\" mencakup kedua tahap.",
   },
   {
     kategori: "Laporan",
@@ -540,28 +552,30 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
       { role: "STAFF", teks: "Upload screenshot atau PDF di Rekap, pilih rekening" },
       { teks: "AI membaca transaksi, lalu menyarankan kode akun (dua tahap terpisah)" },
       { role: "STAFF", teks: "Periksa baris merah, koreksi kode, split bila perlu" },
-      { role: "STAFF", teks: "Simpan ke Rekap", status: "Menunggu ACC" },
-      { role: "ADMIN", teks: "Periksa dan setujui", status: "Disetujui" },
+      { role: "STAFF", teks: "Simpan ke Rekap", status: "ACC Bendahara" },
+      { role: "BENDAHARA", teks: "Verifikasi input staff (koreksi kode/split lanjut ke Finance)", status: "Disetujui" },
       { teks: "Masuk Laporan: Laba Rugi, Neraca, Arus Kas, Perubahan Modal" },
     ],
   },
   {
-    judul: "2. Koreksi dan pengesahan (ACC)",
-    deskripsi: "Berlaku untuk setiap perubahan oleh STAFF atau Bendahara, kapan pun dibuat.",
+    judul: "2. Koreksi dan pengesahan (ACC berjenjang)",
+    deskripsi: "Koreksi dari STAFF lewat dua tahap: verifikasi Bendahara, lalu finalisasi Finance untuk kode/catatan/split.",
     langkah: [
-      { role: "STAFF", teks: "Mengubah kode, catatan, atau split sebuah transaksi", status: "Menunggu ACC" },
-      { role: "ADMIN", teks: "Pilih salah satu: klik Setujui kalau sudah benar, atau ubah sendiri kalau masih salah" },
-      { teks: "Perubahan oleh ADMIN/OWNER otomatis disetujui dan tercatat atas namanya", status: "Disetujui" },
-      { teks: "Kalau STAFF mengubah lagi transaksi yang sudah disetujui, statusnya kembali menunggu" },
+      { role: "STAFF", teks: "Mengubah kode, catatan, split, atau tanda yakin sebuah transaksi", status: "ACC Bendahara" },
+      { role: "BENDAHARA", teks: "Periksa koreksi ringan, lalu verifikasi", status: "Disetujui" },
+      { role: "BENDAHARA", teks: "Koreksi kode/catatan/split: verifikasi dulu, lalu diteruskan", status: "Perlu ACC Finance" },
+      { role: "ADMIN", teks: "Finalkan koreksi kode/catatan/split yang diteruskan Bendahara", status: "Disetujui" },
+      { teks: "Perubahan oleh ADMIN/OWNER otomatis disetujui dan tercatat atas namanya" },
+      { teks: "Kalau STAFF mengubah lagi transaksi yang sudah disetujui, statusnya dihitung ulang (berjenjang)" },
     ],
   },
   {
     judul: "3. Kas tunai (petty cash)",
-    deskripsi: "Untuk uang tunai yang tidak punya mutasi bank.",
+    deskripsi: "Untuk uang tunai yang tidak punya mutasi bank — input manual bebas ACC.",
     langkah: [
       { role: "OWNER", teks: "Buat rekening berjenis Petty Cash dengan saldo awal (menu Rekening)" },
-      { role: "BENDAHARA", teks: "Catat belanja atau isi ulang lewat Tambah Transaksi", status: "Menunggu ACC" },
-      { role: "ADMIN", teks: "Periksa nota lalu setujui, lengkapi kode bila kosong", status: "Disetujui" },
+      { role: "BENDAHARA", teks: "Catat belanja atau isi ulang lewat Tambah Transaksi", status: "Disetujui" },
+      { teks: "Input petty cash langsung final (tanpa ACC); kode boleh dilengkapi Finance kapan saja" },
       { teks: "Saldo petty cash tampil sebagai kelompok sendiri di Neraca, dan ikut total kas" },
     ],
   },
