@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, AlertTriangle, Upload, Download, FileSpreadsheet, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   Button,
@@ -50,6 +50,30 @@ interface FormState {
   brandId: string | null;
 }
 
+interface PerubahanRekening {
+  status: "baru" | "ubah";
+  baris: number;
+  nama: string;
+  bank: string;
+  brand: string | null;
+  nomorRekening: string | null;
+  saldoAwal: number;
+  tanggalSaldoAwal: string;
+  urutan: number;
+  diubah: string[];
+}
+
+interface PratinjauRekening {
+  namaSheet: string;
+  jumlahBaris: number;
+  baru: number;
+  ubah: number;
+  sama: number;
+  gagal: { baris: number; nama: string; alasan: string }[];
+  contohBaru: PerubahanRekening[];
+  contohUbah: PerubahanRekening[];
+}
+
 const FORM_KOSONG: FormState = {
   id: null,
   nama: "",
@@ -68,6 +92,10 @@ export default function RekeningPage() {
   const [hapusTarget, setHapusTarget] = React.useState<Rekening | null>(null);
   const [menghapus, setMenghapus] = React.useState(false);
   const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
+  const [imporBuka, setImporBuka] = React.useState(false);
+  const [imporPratinjau, setImporPratinjau] = React.useState<PratinjauRekening | null>(null);
+  const [imporFile, setImporFile] = React.useState<File | null>(null);
+  const [imporSibuk, setImporSibuk] = React.useState(false);
 
   React.useEffect(() => {
     fetch("/api/brand")
@@ -165,18 +193,216 @@ export default function RekeningPage() {
     }
   }
 
+  function bukaImpor() {
+    setImporFile(null);
+    setImporPratinjau(null);
+    setImporBuka(true);
+  }
+
+  async function imporRekening(file: File, mode: "cek" | "terapkan") {
+    setImporSibuk(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("mode", mode);
+      const res = await fetch("/api/rekening/import", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (mode === "cek") {
+        setImporPratinjau(data);
+      } else {
+        toast.success(
+          `${data.baru} rekening baru, ${data.ubah} diubah` +
+            (data.dihitungUlang ? `, ${data.dihitungUlang} saldo dihitung ulang` : "")
+        );
+        setImporBuka(false);
+        setImporPratinjau(null);
+        setImporFile(null);
+        muat();
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memproses file");
+    } finally {
+      setImporSibuk(false);
+    }
+  }
+
   return (
     <>
       <PageHeader
         judul="Rekening"
         deskripsi="Daftar rekening yang muncul di dropdown saat merekap. Saldo awal adalah titik nol pembukuan — kalau salah, seluruh saldo ikut salah."
         aksi={
-          <Button onClick={() => setForm({ ...FORM_KOSONG })}>
-            <Plus className="h-4 w-4" />
-            Tambah Rekening
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button varian="sekunder" onClick={bukaImpor}>
+              <Upload className="h-4 w-4" />
+              Import Excel
+            </Button>
+            <Button onClick={() => setForm({ ...FORM_KOSONG })}>
+              <Plus className="h-4 w-4" />
+              Tambah Rekening
+            </Button>
+          </div>
         }
       />
+
+      <Modal
+        buka={imporBuka}
+        judul="Import Rekening dari Excel"
+        deskripsi={
+          imporPratinjau
+            ? undefined
+            : "Unggah file .xlsx dengan kolom NAMA, BANK, BRAND (opsional), NO REKENING, SALDO AWAL, TANGGAL SALDO AWAL, URUTAN. Pakai tombol Download template kalau belum ada."
+        }
+        onTutup={() => {
+          if (!imporSibuk) {
+            setImporBuka(false);
+            setImporPratinjau(null);
+            setImporFile(null);
+          }
+        }}
+      >
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="/api/rekening/template"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-zinc-600 dark:text-gray-200 dark:hover:bg-zinc-700"
+            >
+              <Download className="h-4 w-4" />
+              Download template
+            </a>
+            {imporPratinjau?.gagal && imporPratinjau.gagal.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await fetch("/api/rekening/template", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ baris: imporPratinjau.gagal }),
+                  });
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "rekening_gagal.xlsx";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900/30"
+              >
+                <Download className="h-4 w-4" />
+                Unduh baris gagal ({imporPratinjau.gagal.length})
+              </button>
+            )}
+          </div>
+
+          {!imporPratinjau ? (
+            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 px-4 py-8 text-center hover:border-blue-400 hover:bg-blue-50/40 dark:border-zinc-600 dark:hover:border-blue-700 dark:hover:bg-blue-950/20">
+              <FileSpreadsheet className="h-7 w-7 text-gray-400" />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                {imporFile ? imporFile.name : "Pilih file Excel (.xlsx)"}
+              </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Maks 5MB</span>
+              <input
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setImporFile(f);
+                  if (f) imporRekening(f, "cek");
+                }}
+              />
+            </label>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2 text-sm">
+                <span className="rounded-full bg-green-100 px-2.5 py-1 font-medium text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                  {imporPratinjau.baru} baru
+                </span>
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-200">
+                  {imporPratinjau.ubah} diubah
+                </span>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700 dark:bg-zinc-700 dark:text-gray-200">
+                  {imporPratinjau.sama} sama (dilewati)
+                </span>
+                {imporPratinjau.gagal.length > 0 && (
+                  <span className="rounded-full bg-red-100 px-2.5 py-1 font-medium text-red-800 dark:bg-red-900/40 dark:text-red-200">
+                    {imporPratinjau.gagal.length} gagal
+                  </span>
+                )}
+              </div>
+
+              {(imporPratinjau.contohBaru.length > 0 || imporPratinjau.contohUbah.length > 0) && (
+                <div className="max-h-56 overflow-auto rounded-lg border border-gray-200 dark:border-zinc-700">
+                  <table className="w-full text-xs">
+                    <thead className="sticky top-0 bg-gray-50 dark:bg-zinc-800">
+                      <tr className="text-left text-gray-600 dark:text-gray-300">
+                        <th className="px-2 py-1.5 font-medium">Status</th>
+                        <th className="px-2 py-1.5 font-medium">Nama</th>
+                        <th className="px-2 py-1.5 font-medium">Bank</th>
+                        <th className="px-2 py-1.5 font-medium">Brand</th>
+                        <th className="px-2 py-1.5 text-right font-medium">Saldo awal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[...imporPratinjau.contohUbah, ...imporPratinjau.contohBaru].map((r) => (
+                        <tr key={`${r.status}-${r.baris}`} className="border-t border-gray-100 dark:border-zinc-800">
+                          <td className="px-2 py-1">
+                            {r.status === "baru" ? (
+                              <span className="text-green-700 dark:text-green-300">baru</span>
+                            ) : (
+                              <span className="text-blue-700 dark:text-blue-300">
+                                {r.diubah.length ? `ubah: ${r.diubah.join(", ")}` : "ubah"}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1 text-gray-900 dark:text-gray-50">{r.nama}</td>
+                          <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{r.bank}</td>
+                          <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{r.brand ?? "—"}</td>
+                          <td className="px-2 py-1 text-right tabular-nums text-gray-900 dark:text-gray-50">
+                            {r.saldoAwal.toLocaleString("id-ID")}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {imporPratinjau.gagal.length > 0 && (
+                <ul className="max-h-32 space-y-1 overflow-auto text-xs text-red-700 dark:text-red-300">
+                  {imporPratinjau.gagal.slice(0, 50).map((g) => (
+                    <li key={g.baris}>
+                      Baris {g.baris}: {g.nama || "(tanpa nama)"} — {g.alasan}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  varian="sekunder"
+                  onClick={() => {
+                    setImporPratinjau(null);
+                    setImporFile(null);
+                  }}
+                >
+                  Ganti file
+                </Button>
+                <Button
+                  loading={imporSibuk}
+                  disabled={imporPratinjau.baru + imporPratinjau.ubah === 0}
+                  onClick={() => imporFile && imporRekening(imporFile, "terapkan")}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  Terapkan {imporPratinjau.baru + imporPratinjau.ubah} perubahan
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
 
       <Modal
         buka={form !== null}
