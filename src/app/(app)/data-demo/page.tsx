@@ -171,8 +171,12 @@ export default function DataDemoPage() {
             </p>
             <ul className="mt-2 space-y-1 text-sm text-gray-700 dark:text-gray-300">
               <li>
-                <code className="font-mono">demo.finance</code> — ADMIN, akses semua brand. Password{" "}
-                <code className="font-mono">dummy1234</code>
+                <code className="font-mono">demo.finance</code> — ADMIN (Finance), akses semua brand; meng-ACC final
+                koreksi kode/catatan/split. Password <code className="font-mono">dummy1234</code>
+              </li>
+              <li>
+                <code className="font-mono">demo.bendahara</code> — BENDAHARA, pegang petty cash (input langsung masuk
+                tanpa ACC) &amp; verifikasi input staff (ACC tahap 1). Password <code className="font-mono">dummy1234</code>
               </li>
               <li>
                 <code className="font-mono">demo.zanevamuslimah</code> (dan sejenisnya) — STAFF, dibatasi ke satu brand
