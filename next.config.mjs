@@ -1,5 +1,22 @@
+import os from "node:os";
+
+// Next menolak skrip dev dari host selain localhost. Tanpa ini, membuka
+// http://<ip-laptop>:3000 menampilkan halaman tapi JavaScript tidak jalan,
+// jadi form login hanya memuat ulang halaman.
+function asalDevLokal() {
+  const asal = new Set(["127.0.0.1", "financezv.maulanacorp.biz.id"]);
+  for (const daftar of Object.values(os.networkInterfaces())) {
+    for (const kartu of daftar ?? []) {
+      const v4 = kartu.family === "IPv4" || kartu.family === 4;
+      if (v4 && !kartu.internal) asal.add(kartu.address);
+    }
+  }
+  return [...asal];
+}
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  allowedDevOrigins: asalDevLokal(),
   // Wajib untuk Dockerfile di EasyPanel — tanpa ini image jadi besar sekali
   output: "standalone",
   // Indikator dev jangan menutup label Panduan di pojok kiri sidebar.
