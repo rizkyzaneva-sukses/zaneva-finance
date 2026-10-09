@@ -14,6 +14,8 @@ RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
+# Hanya untuk prisma generate saat build. URL asli diisi EasyPanel saat container jalan.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
 # "build" menjalankan prisma generate dulu (src/generated tidak ikut git)
 RUN npm run build
 

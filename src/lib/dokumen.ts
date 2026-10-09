@@ -18,7 +18,10 @@ export const MAKS_TOTAL = 100 * 1024 * 1024;
  * (DOKUMEN_DIR), kalau tidak file hilang tiap container dibuat ulang.
  */
 export function folderDokumen(): string {
-  return path.resolve(process.env.DOKUMEN_DIR || path.join(process.cwd(), "storage", "dokumen"));
+  const dariEnv = process.env["DOKUMEN_DIR"];
+  if (dariEnv) return path.resolve(dariEnv);
+  // turbopackIgnore: path dinamis ini jangan menarik seluruh repo ke dalam trace image.
+  return path.resolve(path.join(/*turbopackIgnore: true*/ process.cwd(), "storage", "dokumen"));
 }
 
 export type JenisFile = { ext: string; mime: string };
