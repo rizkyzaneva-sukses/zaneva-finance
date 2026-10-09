@@ -202,7 +202,7 @@ export function Modal({
   buka: boolean;
   judul: string;
   deskripsi?: string;
-  lebar?: "md" | "lg";
+  lebar?: "md" | "lg" | "xl";
   onTutup: () => void;
   children: React.ReactNode;
 }) {
@@ -232,7 +232,7 @@ export function Modal({
         aria-label={judul}
         className={cn(
           "relative my-4 w-full rounded-xl border border-gray-200 bg-card p-4 shadow-xl sm:p-5 dark:border-zinc-700",
-          lebar === "lg" ? "max-w-3xl" : "max-w-xl"
+          lebar === "xl" ? "max-w-5xl" : lebar === "lg" ? "max-w-3xl" : "max-w-xl"
         )}
       >
         <div className="mb-4 flex items-start justify-between gap-3">

@@ -173,7 +173,8 @@ export interface OpsiKodeAkun {
  */
 export async function sarankanKodeAkun(
   keterangan: { index: number; teks: string; arah: "masuk" | "keluar" }[],
-  daftarKode: OpsiKodeAkun[]
+  daftarKode: OpsiKodeAkun[],
+  contoh: { arah: "masuk" | "keluar"; kunci: string; kode: string }[] = []
 ): Promise<Map<number, string>> {
   if (keterangan.length === 0) return new Map();
 
@@ -181,18 +182,31 @@ export async function sarankanKodeAkun(
   const transaksi = keterangan
     .map((k) => `${k.index}. [${k.arah}] ${k.teks}`)
     .join("\n");
+  const blokContoh =
+    contoh.length === 0
+      ? ""
+      : `\nCONTOH YANG SUDAH DIKONFIRMASI TIM (kalau polanya mirip, ikuti kode ini, jangan menebak lain):\n${contoh
+          .map((c) => `- [${c.arah}] ${c.kunci} → ${c.kode}`)
+          .join("\n")}\n`;
 
   const prompt = `Kamu membantu tim keuangan mengklasifikasikan transaksi bank ke kode akun pembukuan.
 
 DAFTAR KODE AKUN YANG TERSEDIA:
 ${daftar}
-
+${blokContoh}
 DAFTAR TRANSAKSI (format: nomor. [arah uang] keterangan):
 ${transaksi}
 
 Tugas: tentukan kode akun paling tepat untuk setiap transaksi.
 
-Aturan penting:
+Aturan tetap tim:
+- Uang masuk marketplace (Shopee, Lazada, Tokopedia, TikTok, Midtrans) pakai kode penjualannya masing-masing, bukan 400.
+- Uang masuk JNT / J&T VIP = 409, SAP = 408, Mengantar = 410, kalau kode itu ada di daftar.
+- Pencairan QR / QRIS jangan diisi 400.
+- Uang masuk transfer orang (bukan yang di atas) biasanya 400, tapi baris itu sering sudah ditangani di luar prompt ini.
+- Contoh yang dikonfirmasi tim lebih kuat dari tebakanmu.
+
+Aturan jawaban:
 - Balas HANYA JSON object dengan bentuk {"hasil":[{"index":0,"kode":"402"}, ...]}
 - "kode" HARUS salah satu kode yang ada di daftar di atas, disalin persis.
 - Kalau kamu tidak yakin, atau beberapa kode sama-sama masuk akal dan tidak ada petunjuk pembeda di keterangannya, isi "kode": null. JANGAN menebak.

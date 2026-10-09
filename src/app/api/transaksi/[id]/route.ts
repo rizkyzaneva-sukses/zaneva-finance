@@ -7,6 +7,8 @@ import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, StatusKode } from "@/generated/prisma/enums";
 import { hitungUlangSaldo } from "@/lib/rekap";
 import { bolehRekening } from "@/lib/akses";
+import { catatContoh } from "@/lib/contoh-klasifikasi";
+import { KODE_PENJUALAN } from "@/lib/mutasi-pola";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -52,11 +54,23 @@ export async function PATCH(req: Request, { params }: Params) {
       );
     }
 
+    let kodeBaru: { id: string; kode: string } | null = null;
     if ("kodeAkunId" in body) {
       const kodeAkunId = body.kodeAkunId ? String(body.kodeAkunId) : null;
       data.kodeAkun = kodeAkunId ? { connect: { id: kodeAkunId } } : { disconnect: true };
       // Sentuhan manusia selalu dianggap keputusan final, bukan saran mesin lagi.
       data.statusKode = kodeAkunId ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG;
+      if (kodeAkunId) {
+        kodeBaru = await prisma.kodeAkun.findUnique({
+          where: { id: kodeAkunId },
+          select: { id: true, kode: true },
+        });
+      }
+      // Bukan penjualan 400 lagi — status Verified tidak berlaku.
+      if (kodeBaru?.kode !== KODE_PENJUALAN && lama.diverifikasiPada) {
+        data.diverifikasiPada = null;
+        if (lama.diverifikasiOlehId) data.diverifikasiOleh = { disconnect: true };
+      }
     }
     if ("catatan" in body) data.catatan = String(body.catatan ?? "").trim() || null;
     if (typeof body.yakin === "boolean") data.yakin = body.yakin;
@@ -64,8 +78,22 @@ export async function PATCH(req: Request, { params }: Params) {
     const transaksi = await prisma.transaksi.update({
       where: { id },
       data,
-      include: { kodeAkun: { select: { id: true, kode: true, nama: true } } },
+      include: {
+        kodeAkun: { select: { id: true, kode: true, nama: true } },
+        diverifikasiOleh: { select: { nama: true } },
+      },
     });
+
+    if (kodeBaru) {
+      await catatContoh(prisma, [
+        {
+          keterangan: lama.keterangan,
+          arah: lama.uangMasuk.greaterThan(0) ? "masuk" : "keluar",
+          kode: kodeBaru.kode,
+          kodeAkunId: kodeBaru.id,
+        },
+      ]);
+    }
 
     await prisma.auditLog.create({
       data: {

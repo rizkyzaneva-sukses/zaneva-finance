@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Download,
   Trash2,
@@ -25,6 +25,8 @@ import {
   Modal,
   PageHeader,
   Skeleton,
+  TabButton,
+  TabList,
 } from "@/components/ui/primitives";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { SplitEditor, type RincianForm } from "@/components/split-editor";
@@ -53,6 +55,8 @@ interface Transaksi {
   }[];
   createdBy: { nama: string } | null;
   updatedBy: { nama: string } | null;
+  diverifikasiPada: string | null;
+  diverifikasiOleh: { nama: string } | null;
 }
 
 interface FormManual {
@@ -71,8 +75,15 @@ const hariIniIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+function penjualan400(t: Pick<Transaksi, "kodeAkun" | "rincian">): boolean {
+  return t.kodeAkun?.kode === "400" || t.rincian.some((r) => r.kodeAkun.kode === "400");
+}
+
 function TransaksiIsi() {
   const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const tab = params.get("tab") === "penjualan" ? "penjualan" : "riwayat";
 
   const [daftar, setDaftar] = React.useState<Transaksi[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -89,6 +100,7 @@ function TransaksiIsi() {
   const [cari, setCari] = React.useState("");
   const [belumBeres, setBelumBeres] = React.useState(params.get("belumBeres") === "1");
   const [menungguAcc, setMenungguAcc] = React.useState(params.get("menungguAcc") === "1");
+  const [verifikasi, setVerifikasi] = React.useState<string | null>(null);
 
   const [role, setRole] = React.useState<string | null>(null);
   const [menyetujui, setMenyetujui] = React.useState(false);
@@ -101,6 +113,8 @@ function TransaksiIsi() {
   const bisaAccFinance = role === "ADMIN" || role === "OWNER";
   const bolehHapus = role === "ADMIN" || role === "OWNER";
   const bolehExport = role !== null && role !== "BENDAHARA";
+  const bolehVerifikasi = role === "STAFF" || role === "ADMIN" || role === "OWNER";
+  const [memverifikasi, setMemverifikasi] = React.useState(false);
 
   const [hapusTarget, setHapusTarget] = React.useState<Transaksi | null>(null);
   const [menghapus, setMenghapus] = React.useState(false);
@@ -112,14 +126,18 @@ function TransaksiIsi() {
   const query = React.useCallback(() => {
     const q = new URLSearchParams();
     if (filterRekening) q.set("rekeningId", filterRekening);
-    if (filterKode) q.set("kodeAkunId", filterKode);
+    if (filterKode && tab !== "penjualan") q.set("kodeAkunId", filterKode);
     if (dari) q.set("dari", dari);
     if (sampai) q.set("sampai", sampai);
     if (cari) q.set("cari", cari);
     if (belumBeres) q.set("belumBeres", "1");
     if (menungguAcc) q.set("menungguAcc", "1");
+    if (tab === "penjualan") {
+      q.set("penjualan", "1");
+      if (verifikasi) q.set("verifikasi", verifikasi);
+    }
     return q;
-  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, menungguAcc]);
+  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, menungguAcc, tab, verifikasi]);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -190,6 +208,8 @@ function TransaksiIsi() {
                 statusKode: data.transaksi.statusKode,
                 statusAcc: data.transaksi.statusAcc,
                 accOleh: null,
+                diverifikasiPada: data.transaksi.diverifikasiPada ?? null,
+                diverifikasiOleh: data.transaksi.diverifikasiOleh ?? null,
               }
             : t
         )
@@ -202,6 +222,36 @@ function TransaksiIsi() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
       muat();
+    }
+  }
+
+  function gantiTab(berikut: "riwayat" | "penjualan") {
+    const q = new URLSearchParams(params.toString());
+    if (berikut === "penjualan") q.set("tab", "penjualan");
+    else q.delete("tab");
+    setVerifikasi(null);
+    setHalaman(1);
+    const s = q.toString();
+    router.replace(s ? `${pathname}?${s}` : pathname);
+  }
+
+  async function tandaiVerifikasi(ids: string[], verified: boolean) {
+    if (ids.length === 0) return;
+    setMemverifikasi(true);
+    try {
+      const res = await fetch("/api/transaksi/verifikasi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, verified }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(verified ? `${data.diubah} penjualan ditandai Verified` : `${data.diubah} verifikasi dikosongkan`);
+      muat();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengubah verifikasi");
+    } finally {
+      setMemverifikasi(false);
     }
   }
 
@@ -327,7 +377,11 @@ function TransaksiIsi() {
     <>
       <PageHeader
         judul="Transaksi"
-        deskripsi="Seluruh rekap yang tersimpan. Kode akun dan catatan bisa dikoreksi langsung di tabel."
+        deskripsi={
+          tab === "penjualan"
+            ? "Penjualan kode 400. Staff dan Finance bisa menandai Verified setelah dicek. Kosong berarti belum."
+            : "Seluruh rekap yang tersimpan. Kode akun dan catatan bisa dikoreksi langsung di tabel."
+        }
         aksi={
           <>
             <Button
@@ -356,6 +410,15 @@ function TransaksiIsi() {
         }
       />
 
+      <TabList label="Bagian transaksi" className="mb-4 max-w-md">
+        <TabButton aktif={tab === "riwayat"} onClick={() => gantiTab("riwayat")}>
+          History
+        </TabButton>
+        <TabButton aktif={tab === "penjualan"} onClick={() => gantiTab("penjualan")}>
+          Penjualan
+        </TabButton>
+      </TabList>
+
       <Card className="mb-4">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SearchableSelect
@@ -368,17 +431,34 @@ function TransaksiIsi() {
             options={rekening}
             placeholder="Semua rekening"
           />
-          <SearchableSelect
-            label="Kode akun"
-            value={filterKode}
-            onChange={(v) => {
-              setFilterKode(v);
-              setHalaman(1);
-            }}
-            options={opsiKode}
-            placeholder="Semua kode"
-            searchPlaceholder="Cari kode..."
-          />
+          {tab === "penjualan" ? (
+            <SearchableSelect
+              label="Verifikasi"
+              value={verifikasi}
+              onChange={(v) => {
+                setVerifikasi(v);
+                setHalaman(1);
+              }}
+              options={[
+                { value: "belum", label: "Belum" },
+                { value: "sudah", label: "Verified" },
+              ]}
+              placeholder="Semua"
+              searchPlaceholder="Cari status..."
+            />
+          ) : (
+            <SearchableSelect
+              label="Kode akun"
+              value={filterKode}
+              onChange={(v) => {
+                setFilterKode(v);
+                setHalaman(1);
+              }}
+              options={opsiKode}
+              placeholder="Semua kode"
+              searchPlaceholder="Cari kode..."
+            />
+          )}
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
               Dari
@@ -490,6 +570,21 @@ function TransaksiIsi() {
                     Finalkan {daftar.filter((t) => t.statusAcc === "PERLU_FINANCE").length} (Finance)
                   </Button>
                 )}
+                {tab === "penjualan" && bolehVerifikasi && daftar.some((t) => !t.diverifikasiPada) && (
+                  <Button
+                    varian="sekunder"
+                    loading={memverifikasi}
+                    onClick={() =>
+                      tandaiVerifikasi(
+                        daftar.filter((t) => !t.diverifikasiPada).map((t) => t.id),
+                        true
+                      )
+                    }
+                  >
+                    <CheckCheck className="h-4 w-4" />
+                    Verifikasi yang belum ({daftar.filter((t) => !t.diverifikasiPada).length})
+                  </Button>
+                )}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -497,20 +592,33 @@ function TransaksiIsi() {
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Tanggal</th>
+                    <th className="min-w-52 px-2 py-2 font-medium">Kode akun</th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Rekening</th>
                     <th className="min-w-52 px-2 py-2 font-medium">Keterangan</th>
-                    <th className="min-w-52 px-2 py-2 font-medium">Kode akun</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Masuk</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Keluar</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Saldo</th>
                     <th className="min-w-36 px-2 py-2 font-medium">Catatan</th>
+                    {tab === "penjualan" && (
+                      <th className="whitespace-nowrap px-2 py-2 font-medium">Verifikasi</th>
+                    )}
                     <th className="px-2 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {daftar.map((t) => (
                     <React.Fragment key={t.id}>
-                    <tr className="border-b border-gray-100 align-top dark:border-zinc-800">
+                    <tr
+                      className={cn(
+                        "border-b border-gray-100 align-top dark:border-zinc-800",
+                        tab === "penjualan" &&
+                          !t.diverifikasiPada &&
+                          "bg-amber-50 dark:bg-amber-950/30",
+                        tab === "penjualan" &&
+                          t.diverifikasiPada &&
+                          "bg-green-50 dark:bg-green-950/30"
+                      )}
+                    >
                       <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
                         {formatTanggal(t.tanggal)}
                         {!t.yakin && (
@@ -544,10 +652,6 @@ function TransaksiIsi() {
                           </div>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
-                        {t.rekening.nama}
-                      </td>
-                      <td className="px-2 py-2 text-gray-900 dark:text-gray-50">{t.keterangan}</td>
                       <td className="px-2 py-2">
                         {t.rincian.length > 0 ? (
                           <Badge warna="biru">
@@ -565,13 +669,22 @@ function TransaksiIsi() {
                               searchPlaceholder="Cari kode..."
                             />
                             {t.statusKode === "SARAN_AI" && (
-                              <span className="mt-1 inline-block text-xs text-blue-700 dark:text-blue-300">
+                              <span className="mt-1 inline-block text-xs text-blue-800 dark:text-blue-300">
                                 saran AI — belum dikonfirmasi
                               </span>
                             )}
                           </>
                         )}
+                        {tab !== "penjualan" && penjualan400(t) && t.diverifikasiPada && (
+                          <div className="mt-1" title={t.diverifikasiOleh ? `Oleh ${t.diverifikasiOleh.nama}` : undefined}>
+                            <Badge warna="hijau">Verified</Badge>
+                          </div>
+                        )}
                       </td>
+                      <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
+                        {t.rekening.nama}
+                      </td>
+                      <td className="px-2 py-2 text-gray-900 dark:text-gray-50">{t.keterangan}</td>
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
                         {Number(t.uangMasuk) ? formatAngka(t.uangMasuk) : ""}
                       </td>
@@ -602,6 +715,29 @@ function TransaksiIsi() {
                           className={`${INPUT_CLASS} py-1 text-xs`}
                         />
                       </td>
+                      {tab === "penjualan" && (
+                        <td className="px-2 py-2">
+                          <button
+                            type="button"
+                            disabled={!bolehVerifikasi || memverifikasi}
+                            onClick={() => tandaiVerifikasi([t.id], !t.diverifikasiPada)}
+                            title={
+                              t.diverifikasiPada
+                                ? `Verified${t.diverifikasiOleh ? ` oleh ${t.diverifikasiOleh.nama}` : ""}. Klik untuk mengosongkan.`
+                                : bolehVerifikasi
+                                  ? "Belum diverifikasi. Klik untuk menandai Verified."
+                                  : "Belum diverifikasi"
+                            }
+                            className="rounded disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {t.diverifikasiPada ? (
+                              <Badge warna="hijau">Verified</Badge>
+                            ) : (
+                              <Badge warna="abu">Belum</Badge>
+                            )}
+                          </button>
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-2 py-2 text-right">
                         {t.statusAcc === "MENUNGGU" && bisaAccBendahara && (
                           <button
@@ -660,12 +796,13 @@ function TransaksiIsi() {
                           key={r.id}
                           className="border-b border-gray-100 bg-gray-50 dark:border-zinc-800 dark:bg-zinc-800/40"
                         >
-                          <td colSpan={2}></td>
-                          <td className="px-2 py-1.5 pl-6 text-xs text-gray-600 dark:text-gray-400">
-                            ↳ {r.keterangan || r.kodeAkun.nama}
-                          </td>
+                          <td className="px-2 py-1.5"></td>
                           <td className="px-2 py-1.5 text-xs text-gray-900 dark:text-gray-50">
                             <span className="font-mono">{r.kodeAkun.kode}</span> — {r.kodeAkun.nama}
+                          </td>
+                          <td className="px-2 py-1.5"></td>
+                          <td className="px-2 py-1.5 pl-6 text-xs text-gray-600 dark:text-gray-400">
+                            ↳ {r.keterangan || r.kodeAkun.nama}
                           </td>
                           <td className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-gray-900 dark:text-gray-50">
                             {masuk ? formatAngka(r.nominal) : ""}
@@ -673,7 +810,7 @@ function TransaksiIsi() {
                           <td className="whitespace-nowrap px-2 py-1.5 text-right text-xs tabular-nums text-gray-900 dark:text-gray-50">
                             {masuk ? "" : formatAngka(r.nominal)}
                           </td>
-                          <td colSpan={3}></td>
+                          <td colSpan={tab === "penjualan" ? 4 : 3}></td>
                         </tr>
                       );
                     })}

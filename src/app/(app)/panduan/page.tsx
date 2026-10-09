@@ -134,12 +134,14 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         ),
       },
       {
-        judul: "Simpan ke Rekap",
+        judul: "Simpan Semua",
         isi: (
           <>
-            Transaksi tersimpan dengan status <Badge warna="biru">ACC Bendahara</Badge> sampai diverifikasi. Koreksi kode, catatan, atau
-            split setelah itu diteruskan ke Finance (badge kuning). Baris yang dianggap duplikat tidak hilang diam-diam: ia
-            ditahan di layar dengan tombol <strong>Tetap masukkan</strong>.
+            Yang dicentang <strong>Ikut</strong> tersimpan dengan status <Badge warna="biru">ACC Bendahara</Badge> sampai
+            diverifikasi. Koreksi kode, catatan, atau split setelah itu diteruskan ke Finance (badge kuning). Baris bertanda{" "}
+            <strong>Duplikat</strong> tidak ikut: centangnya kosong. Centang Ikut hanya kalau transaksi kembar itu memang
+            terjadi dua kali. Beberapa baris bisa diganti kodenya bareng-bareng lewat <strong>Ubah Sekaligus</strong>; itu
+            baru tersimpan setelah Simpan Semua.
           </>
         ),
       },
@@ -157,7 +159,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
   {
     role: "ADMIN",
     judul: "Rutinitas Finance: mengesahkan dan menutup bulan",
-    ringkas: "Memastikan pekerjaan tim benar, lalu membagikan alokasi dari laba.",
+    ringkas: "Memastikan pekerjaan tim benar, mencatat jurnal penyesuaian, lalu membagikan alokasi dari laba.",
     langkah: [
       {
         judul: "Sahkan pekerjaan tim (berjenjang)",
@@ -177,6 +179,20 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
           <>
             Buka <Tautan href="/laporan">Laporan</Tautan> (kelompok Tutup buku). Kotak hijau &quot;Kas cocok&quot; harus muncul. Banner kuning berarti ada
             transaksi tanpa kode atau kode yang belum diatur masuk laporan, perbaiki sebelum laba dipakai.
+          </>
+        ),
+      },
+      {
+        judul: "Catat jurnal penyesuaian per brand",
+        isi: (
+          <>
+            Sebelum OWNER mengesahkan laba, buka <Tautan href="/laporan">Laporan</Tautan>, lalu tab{" "}
+            <strong>Jurnal Penyesuaian</strong>.
+            Buat satu jurnal per brand untuk pencatatan yang tidak menggerakkan bank. Contoh: kredit{" "}
+            <strong>10415 Deposit Gaji</strong> sebesar mutasi keluar, debit <strong>601 Beban Gaji</strong> dengan angka
+            yang sama. Klik <strong>isi kredit</strong> atau <strong>isi debit</strong> pada saran, lalu ubah angkanya kalau
+            perlu. Jangan centang balik untuk reklasifikasi. Jurnal ini mengubah laba, jadi harus selesai sebelum laba
+            disahkan.
           </>
         ),
       },
@@ -315,8 +331,18 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   },
   {
     kategori: "Rekap",
-    t: "Kenapa ada baris yang ditahan dengan tombol \"Tetap masukkan\"?",
-    j: "Sistem menganggap sebuah baris duplikat kalau tanggal, nominal, dan keterangannya persis sama dengan yang sudah tersimpan di rekening itu. Biasanya ini screenshot yang tumpang tindih karena di-scroll. Tapi dua transaksi kembar yang benar-benar terjadi juga akan terdeteksi, makanya barisnya tidak dibuang: kalau memang sah, klik Tetap masukkan.",
+    t: "Kenapa ada baris bertanda Duplikat, dan kenapa tidak ikut tersimpan?",
+    j: "Sistem menandai duplikat kalau di rekening yang sama sudah ada transaksi dengan hari, nama pengirim, dan nominal yang sama — atau keterangan yang persis sama. Biasanya ini screenshot yang tumpang tindih, atau transfer yang sama terunggah lagi. Baris itu tidak ikut saat Simpan Semua. Kalau memang ada dua transaksi kembar yang benar-benar terjadi, centang Ikut pada baris itu.",
+  },
+  {
+    kategori: "Rekap",
+    t: "Kenapa transfer masuk langsung dapat kode 400?",
+    j: "Uang masuk yang bukan marketplace (Shopee, Lazada, Tokopedia, TikTok, Midtrans), bukan JNT VIP, bukan SAP, bukan Mengantar, dan bukan pencairan QR diisi kode 400 Penjualan. Itu baru di preview, masih bisa diganti sebelum disimpan. Centang beberapa baris lalu klik Ubah Sekaligus kalau mau mengganti kodenya bareng-bareng. Perubahan itu baru masuk database setelah Simpan Semua.",
+  },
+  {
+    kategori: "Rekap",
+    t: "Apakah AI jadi lebih akurat setelah sering dikoreksi?",
+    j: "Modelnya tidak dilatih ulang. Yang diingat adalah koreksi tim: kalau sebuah pola (biasanya nama pengirim atau lawan transaksi) sudah diganti ke kode tertentu, unggahan berikutnya memakai kode itu dan diberi label \"dari koreksi sebelumnya\". Transfer masuk biasa yang tetap 400 tidak perlu diingat, karena itu sudah aturan tetap.",
   },
   {
     kategori: "Rekap",
@@ -327,6 +353,11 @@ const QNA: { kategori: string; t: string; j: string }[] = [
     kategori: "Rekap",
     t: "Kenapa ada tanda \"beda dgn bank\" di kolom saldo?",
     j: "Saldo di app dihitung sendiri: saldo awal ditambah semua masuk dikurangi keluar. Kalau saldo yang tertulis di mutasi bank berbeda Rp 1 atau lebih, baris itu ditandai. Biasanya ada transaksi yang terlewat atau saldo awal rekening salah.",
+  },
+  {
+    kategori: "Transaksi",
+    t: "Apa bedanya History dan Penjualan di halaman Transaksi?",
+    j: "History berisi semua transaksi. Penjualan hanya kode 400. Di situ Staff dan Finance (ADMIN/OWNER) bisa menandai Verified atau mengosongkannya lagi. Hijau berarti sudah dicek, abu-abu berarti belum. Filter Verifikasi menyaring keduanya. Ini terpisah dari ACC Bendahara dan ACC Finance.",
   },
   {
     kategori: "ACC",
@@ -366,12 +397,37 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Laporan",
     t: "Laporan memakai basis apa? Kenapa labanya bisa terasa tidak biasa?",
-    j: "Basis kas: pendapatan dan beban dicatat saat uang masuk atau keluar di rekening, bukan saat transaksinya terjadi. Pembelian ke vendor dihitung penuh sebagai biaya bulan itu, tanpa memperhitungkan persediaan akhir. Jadi bulan ketika belanja stok besar akan terlihat labanya kecil.",
+    j: "Basis kas: pendapatan dan beban dicatat saat uang masuk atau keluar di rekening, bukan saat transaksinya terjadi. Pembelian ke vendor dihitung penuh sebagai biaya bulan itu, tanpa memperhitungkan persediaan akhir. Jadi bulan ketika belanja stok besar akan terlihat labanya kecil. Pengecualiannya Jurnal Penyesuaian: reklasifikasi atau akrual yang tidak menggerakkan saldo bank. Jurnal itu ikut Laba Rugi, Neraca, dan Perubahan Modal, tetapi tidak ikut Arus Kas.",
   },
   {
     kategori: "Laporan",
     t: "Kenapa Pengalihan Dana tidak nol kalau saya memilih satu rekening?",
     j: "Transfer antar rekening dicatat dua kali: keluar di satu rekening dan masuk di rekening lain, dengan efek total nol. Kalau laporan dibatasi satu rekening, hanya satu sisinya yang terlihat. Pilih \"Semua rekening\" untuk laporan usaha yang utuh.",
+  },
+  {
+    kategori: "Laporan",
+    t: "Apa itu Jurnal Penyesuaian, dan bedanya dengan transaksi bank?",
+    j: "Tab Jurnal Penyesuaian di Laporan untuk pencatatan yang tidak menggerakkan uang di rekening. Contohnya memindahkan Deposit Gaji menjadi Beban Gaji di akhir periode. Satu jurnal untuk satu brand, bukan per rekening dan bukan untuk seluruh perusahaan sekaligus. Debit harus sama dengan kredit; kalau tidak, tombol Simpan mati. Jurnal masuk Laba Rugi, Neraca, dan Perubahan Modal. Saldo rekening dan Arus Kas tidak berubah. Filter satu rekening tidak memasukkan jurnal. Kalau rekening yang dipilih belum punya brand, tab itu menampilkan peringatan dan jurnal tidak bisa dibuat.",
+  },
+  {
+    kategori: "Laporan",
+    t: "Bagaimana memindahkan Deposit Gaji menjadi Beban Gaji?",
+    j: "Buka Laporan, pilih brand dan periode, lalu tab Jurnal Penyesuaian → Jurnal baru. Hanya ADMIN dan OWNER. Isi tanggal (biasanya akhir periode atau awal periode berikutnya) dan keterangan. Baris pertama pilih 10415 Deposit Gaji, lalu pada saran Mutasi keluar periode ini klik isi kredit. Baris kedua pilih 601 Beban Gaji dan ketik angka yang sama di Debit. Kalau akun beban itu tidak punya mutasi bank, tidak ada tombol salin antar baris: ketik angkanya sendiri. Angka saran boleh diubah, dan tidak tersimpan sebelum kamu klik Simpan. Jangan centang Balik tanggal 1 bulan berikutnya, karena reklasifikasi tidak dibalik.",
+  },
+  {
+    kategori: "Laporan",
+    t: "Kapan saya mencentang Balik tanggal 1 bulan berikutnya?",
+    j: "Hanya untuk akrual: beban yang belum dibayar, atau pendapatan yang belum diterima. Sistem membuat jurnal kedua bertanggal tanggal 1 bulan berikutnya, debit dan kreditnya tertukar, supaya saat uangnya benar-benar bergerak tidak terhitung dua kali. Reklasifikasi deposit menjadi beban jangan dicentang. Jurnal pembalik diubah lewat jurnal asalnya, bukan langsung. Menghapus jurnal asal ikut menghapus pembaliknya. Menghapus pembalik membuat jurnal asal tidak lagi bertanda dibalik.",
+  },
+  {
+    kategori: "Laporan",
+    t: "Kenapa saldo bank dan Arus Kas tidak berubah setelah jurnal disimpan?",
+    j: "Karena jurnal ini bukan mutasi. Uang di rekening tidak bertambah atau berkurang, jadi saldo berjalan dan Arus Kas tetap dari mutasi bank saja. Yang berubah adalah klasifikasi di laporan: misalnya Deposit Gaji (harta) berkurang dan Beban Gaji bertambah, jadi laba turun. Kotak Kas cocok juga tidak terpengaruh jurnal.",
+  },
+  {
+    kategori: "Laporan",
+    t: "Siapa yang boleh membuat jurnal, dan apakah saran angkanya sudah tersimpan?",
+    j: "ADMIN dan OWNER boleh membuat, mengubah, dan menghapus. Siapa pun yang bisa membuka Laporan, termasuk STAFF, boleh melihat dan mengunduh PDF. Bendahara tidak membuka Laporan, jadi tidak melihat jurnal. Akun yang dibatasi brand hanya melihat jurnal brand-nya. Saran (mutasi keluar, mutasi masuk, dan posisi kumulatif) hanya angka bantu. Posisi kumulatif sudah memperhitungkan jurnal sebelumnya. Tidak ada yang terpasang otomatis.",
   },
   {
     kategori: "Persediaan",
@@ -411,7 +467,7 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Persediaan",
     t: "Bagaimana laporan per brand?",
-    j: "Di Laporan pilih Brand. Isinya rekening yang diberi brand itu (atur di menu Rekening) ditambah persediaan brand itu. Rekening tanpa brand hanya muncul di Semua brand. Laporan per satu rekening tidak menampilkan persediaan.",
+    j: "Di Laporan pilih Brand. Isinya rekening yang diberi brand itu (atur di menu Rekening), persediaan brand itu, dan jurnal penyesuaian brand itu. Rekening tanpa brand hanya muncul di Semua brand. Laporan per satu rekening tidak menampilkan persediaan dan tidak memasukkan jurnal, karena jurnal dicatat per brand.",
   },
   {
     kategori: "Brand",
@@ -436,7 +492,7 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Alokasi",
     t: "Bagaimana saldo alokasi dihitung?",
-    j: "Saldo = saldo awal + jatah dari distribusi yang sudah disahkan − pemakaian. Pemakaian dihitung otomatis dari transaksi uang keluar yang berkode alokasi itu (termasuk rincian split). Jatah bulanan = laba bersih yang disahkan OWNER × persen alokasi kode itu.",
+    j: "Saldo = saldo awal + jatah dari distribusi yang sudah disahkan − pemakaian. Pemakaian dihitung dari transaksi uang keluar berkode alokasi itu (termasuk rincian split) dan dari jurnal penyesuaian pada kode yang sama: debit menambah pemakaian, kredit menguranginya. Jatah bulanan = laba bersih yang disahkan OWNER × persen alokasi kode itu.",
   },
   {
     kategori: "Alokasi",
@@ -446,7 +502,7 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Alokasi",
     t: "Kenapa tombol distribusi mati atau ditolak?",
-    j: "Beberapa kemungkinan: laba bulan itu belum disahkan OWNER; laba berubah sejak disahkan (ada transaksi yang diubah, OWNER perlu mengesahkan ulang); labanya nol atau rugi (tidak ada yang dibagikan); atau total persentase alokasi melebihi 100% (perbaiki di Kode Akun). Bulan yang sudah dibagikan tidak bisa dibagikan dua kali.",
+    j: "Beberapa kemungkinan: laba bulan itu belum disahkan OWNER; laba berubah sejak disahkan (ada transaksi atau jurnal penyesuaian yang diubah, OWNER perlu mengesahkan ulang); labanya nol atau rugi (tidak ada yang dibagikan); atau total persentase alokasi melebihi 100% (perbaiki di Kode Akun). Bulan yang sudah dibagikan tidak bisa dibagikan dua kali.",
   },
   {
     kategori: "Alokasi",
@@ -495,7 +551,7 @@ function TanyaJawab() {
         <input
           value={cari}
           onChange={(e) => setCari(e.target.value)}
-          placeholder="Cari pertanyaan, mis. ACC, split, alokasi"
+          placeholder="Cari pertanyaan, mis. ACC, jurnal, alokasi"
           aria-label="Cari pertanyaan"
           className={`${INPUT_CLASS} pl-8`}
         />
@@ -552,7 +608,7 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
       { role: "STAFF", teks: "Upload screenshot atau PDF di Rekap, pilih rekening" },
       { teks: "AI membaca transaksi, lalu menyarankan kode akun (dua tahap terpisah)" },
       { role: "STAFF", teks: "Periksa baris merah, koreksi kode, split bila perlu" },
-      { role: "STAFF", teks: "Simpan ke Rekap", status: "ACC Bendahara" },
+      { role: "STAFF", teks: "Simpan Semua. Baris Duplikat tidak ikut kecuali dicentang Ikut", status: "ACC Bendahara" },
       { role: "BENDAHARA", teks: "Verifikasi input staff (koreksi kode/split lanjut ke Finance)", status: "Disetujui" },
       { teks: "Masuk Laporan: Laba Rugi, Neraca, Arus Kas, Perubahan Modal" },
     ],
@@ -581,13 +637,14 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
   },
   {
     judul: "4. Tutup bulan dan pembagian alokasi",
-    deskripsi: "Dilakukan awal bulan, untuk laba bulan sebelumnya. Urutannya dipaksa oleh sistem.",
+    deskripsi: "Dilakukan awal bulan, untuk laba bulan sebelumnya. Jurnal penyesuaian dicatat dulu, karena ia mengubah laba. Urutan sahkan lalu bagikan dipaksa oleh sistem.",
     langkah: [
       { role: "ADMIN", teks: "Pastikan semua transaksi bulan itu sudah disetujui dan berkode (cek banner di Laporan)" },
+      { role: "ADMIN", teks: "Per brand, catat Jurnal Penyesuaian yang tidak menggerakkan bank. Contoh: kredit 10415 Deposit Gaji, debit 601 Beban Gaji. Reklasifikasi jangan dibalik. Akrual boleh dicentang Balik tanggal 1 bulan berikutnya" },
       { role: "OWNER", teks: "Sahkan laba bersih bulan itu di menu Alokasi (tutup buku). Angkanya disimpan sebagai snapshot" },
       { role: "ADMIN", teks: "Lihat pratinjau, lalu sahkan distribusi: jatah = laba disahkan × persen tiap kode" },
       { teks: "Jatah masuk ke saldo alokasi tiap kode, dan tercatat di Log Aktivitas" },
-      { teks: "Setiap uang keluar berkode alokasi (ZIS, Alokasi R, dst) otomatis mengurangi saldonya" },
+      { teks: "Uang keluar berkode alokasi (ZIS, Alokasi R, dst) mengurangi saldonya. Jurnal penyesuaian pada kode yang sama juga ikut: debit menambah pemakaian, kredit menguranginya" },
     ],
   },
   {
@@ -695,6 +752,7 @@ const RINGKAS_ROLE: {
       "Mengubah transaksi tanpa perlu ACC, perubahannya langsung disetujui",
       "Menghapus transaksi dan menghapus file dokumen lebih awal",
       "Mengelola Rekening dan Kode Akun, termasuk persen alokasi",
+      "Membuat, mengubah, dan menghapus Jurnal Penyesuaian per brand, serta mengunduh PDF-nya",
       "Mengesahkan distribusi alokasi dari laba yang sudah disahkan OWNER",
       "Melihat Dashboard, Laporan, dan export Excel",
     ],
@@ -713,11 +771,12 @@ const RINGKAS_ROLE: {
       "Mengoreksi kode akun dan catatan, serta split transaksi",
       "Menambah transaksi manual",
       "Mengunggah dan mengunduh dokumen mutasi",
-      "Melihat Dashboard dan Laporan",
+      "Melihat Dashboard, Laporan, dan Jurnal Penyesuaian, serta mengunduh PDF jurnal",
     ],
     tidak: [
       "Semua perubahannya berstatus Menunggu ACC",
       "Menghapus transaksi",
+      "Membuat, mengubah, atau menghapus Jurnal Penyesuaian",
       "Mengelola rekening, kode akun, alokasi, atau pengguna",
     ],
   },
@@ -754,6 +813,7 @@ const MATRIKS: { aksi: string; o: Izin; a: Izin; s: Izin; b: Izin }[] = [
   { aksi: "ACC (sahkan) pekerjaan STAFF/Bendahara", o: true, a: true, s: false, b: false },
   { aksi: "Hapus transaksi", o: true, a: true, s: false, b: false },
   { aksi: "Dashboard, Laporan, export Excel", o: true, a: true, s: true, b: false },
+  { aksi: "Buat, ubah, hapus Jurnal Penyesuaian", o: true, a: true, s: false, b: false },
   { aksi: "Unggah dan unduh Dokumen", o: true, a: true, s: true, b: false },
   { aksi: "Hapus file Dokumen lebih awal", o: true, a: true, s: false, b: false },
   { aksi: "Unggah Stok Opname (SO)", o: true, a: true, s: "acc", b: "acc" },

@@ -93,6 +93,11 @@ export function bolehAccFinance(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER;
 }
 
+/** Menandai penjualan kode 400 sebagai Verified atau mengosongkannya lagi. */
+export function bolehVerifikasiPenjualan(role: Role): boolean {
+  return role === Role.STAFF || role === Role.ADMIN || role === Role.OWNER;
+}
+
 /** Boleh mengesahkan pekerjaan STAFF/BENDAHARA (tahap mana pun). */
 export function bolehAcc(role: Role): boolean {
   return bolehAccBendahara(role);
@@ -100,6 +105,11 @@ export function bolehAcc(role: Role): boolean {
 
 /** Boleh hapus transaksi dan kelola master data (rekening, kode akun). */
 export function bolehKelola(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER;
+}
+
+/** Jurnal penyesuaian tidak menggerakkan bank. Hanya Finance (ADMIN) dan OWNER. */
+export function bolehJurnalPenyesuaian(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER;
 }
 

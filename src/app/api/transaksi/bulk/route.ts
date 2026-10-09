@@ -7,6 +7,9 @@ import { StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { validasiRincian, type RincianBersih, type RincianMasuk } from "@/lib/split";
 import { bolehRekening } from "@/lib/akses";
+import { catatContoh } from "@/lib/contoh-klasifikasi";
+import { tandaiDuplikat } from "@/lib/mutasi-pola";
+import { tanggalKeIso } from "@/lib/utils";
 
 interface BarisMasuk {
   tanggalIso: string;
@@ -80,6 +83,39 @@ export async function POST(req: Request) {
 
       const siapSimpan: Prisma.TransaksiCreateManyInput[] = [];
       const dilewati: { tanggalTeks: string; keterangan: string; nominal: number }[] = [];
+      const untukDiingat: { keterangan: string; arah: "masuk" | "keluar"; kode: string; kodeAkunId: string }[] = [];
+
+      const tanggalUnik = [...new Set(baris.map((b) => b.tanggalIso).filter(Boolean))];
+      const tersimpan = tanggalUnik.length
+        ? await tx.transaksi.findMany({
+            where: {
+              rekeningId,
+              tanggal: { in: tanggalUnik.map((t) => new Date(`${t}T00:00:00.000Z`)) },
+            },
+            select: { tanggal: true, keterangan: true, uangMasuk: true, uangKeluar: true },
+          })
+        : [];
+      const alasanDuplikat = tandaiDuplikat(
+        baris,
+        tersimpan.map((t) => ({
+          tanggalIso: tanggalKeIso(t.tanggal),
+          keterangan: t.keterangan,
+          uangMasuk: t.uangMasuk.toNumber(),
+          uangKeluar: t.uangKeluar.toNumber(),
+        }))
+      );
+
+      const kodeIds = [...new Set(baris.map((b) => b.kodeAkunId).filter((id): id is string => Boolean(id)))];
+      const kodeById = new Map(
+        (
+          kodeIds.length
+            ? await tx.kodeAkun.findMany({
+                where: { id: { in: kodeIds } },
+                select: { id: true, kode: true },
+              })
+            : []
+        ).map((k) => [k.id, k.kode])
+      );
 
       // Hash yang sudah ada di DB untuk rekening ini
       const existing = new Set(
@@ -91,7 +127,7 @@ export async function POST(req: Request) {
         ).map((t) => t.dedupeHash)
       );
 
-      for (const b of baris) {
+      for (const [i, b] of baris.entries()) {
         const dedupeHash = buatDedupeHash({
           tanggalIso: b.tanggalIso,
           uangMasuk: b.uangMasuk,
@@ -99,9 +135,9 @@ export async function POST(req: Request) {
           keterangan: b.keterangan,
         });
 
-        // Duplikat terhadap DB, atau terhadap baris lain di batch yang sama
-        const sudahAda = existing.has(dedupeHash);
-        if (sudahAda && !b.paksa) {
+        // Hari+nama+nominal, atau baris yang sama persis — kecuali user mencentang Ikut.
+        const hashBentrok = existing.has(dedupeHash);
+        if ((Boolean(alasanDuplikat[i]) || hashBentrok) && !b.paksa) {
           dilewati.push({
             tanggalTeks: b.tanggalIso,
             keterangan: b.keterangan,
@@ -109,10 +145,11 @@ export async function POST(req: Request) {
           });
           continue;
         }
+        const hashFinal = hashBentrok ? `${dedupeHash}:dup${urutan}` : dedupeHash;
         existing.add(dedupeHash);
+        existing.add(hashFinal);
 
         const rincian = rincianPerBaris.get(b);
-        const hashFinal = sudahAda ? `${dedupeHash}:dup${urutan}` : dedupeHash;
         if (rincian) rincianPerHash.set(hashFinal, rincian);
 
         siapSimpan.push({
@@ -140,6 +177,16 @@ export async function POST(req: Request) {
           statusAcc: statusAccUntuk(auth.user.role),
           createdById: auth.user.id,
         });
+
+        const kode = b.kodeAkunId ? kodeById.get(b.kodeAkunId) : undefined;
+        if (!rincian && kode && b.kodeAkunId) {
+          untukDiingat.push({
+            keterangan: b.keterangan,
+            arah: b.uangMasuk > 0 ? "masuk" : "keluar",
+            kode,
+            kodeAkunId: b.kodeAkunId,
+          });
+        }
       }
 
       if (siapSimpan.length > 0) {
@@ -165,6 +212,8 @@ export async function POST(req: Request) {
 
         await hitungUlangSaldo(tx, rekeningId);
       }
+
+      if (untukDiingat.length > 0) await catatContoh(tx, untukDiingat);
 
       return { tersimpan: siapSimpan.length, dilewati: dilewati.length, barisDilewati: dilewati };
     });

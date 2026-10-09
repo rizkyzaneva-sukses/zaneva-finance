@@ -31,6 +31,18 @@ export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput
 
   if (sp.get("menungguAcc") === "1") where.statusAcc = { in: [StatusAcc.MENUNGGU, StatusAcc.PERLU_FINANCE] };
 
+  if (sp.get("penjualan") === "1") {
+    dan.push({
+      OR: [
+        { kodeAkun: { kode: "400" } },
+        { rincian: { some: { kodeAkun: { kode: "400" } } } },
+      ],
+    });
+  }
+  const verifikasi = sp.get("verifikasi");
+  if (verifikasi === "sudah") dan.push({ diverifikasiPada: { not: null } });
+  if (verifikasi === "belum") dan.push({ diverifikasiPada: null });
+
   const dari = sp.get("dari");
   const sampai = sp.get("sampai");
   if (dari || sampai) {

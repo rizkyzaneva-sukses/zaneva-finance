@@ -17,14 +17,16 @@ import {
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { cn, formatRupiah } from "@/lib/utils";
 import type { BarisLaporan, HasilLaporan } from "@/lib/laporan";
+import { JurnalPenyesuaianPanel } from "./jurnal-panel";
 
-type Tab = "laba-rugi" | "neraca" | "arus-kas" | "perubahan-modal";
+type Tab = "laba-rugi" | "neraca" | "arus-kas" | "perubahan-modal" | "jurnal";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "laba-rugi", label: "Laba Rugi" },
   { key: "neraca", label: "Neraca" },
   { key: "arus-kas", label: "Arus Kas" },
   { key: "perubahan-modal", label: "Perubahan Modal" },
+  { key: "jurnal", label: "Jurnal Penyesuaian" },
 ];
 
 const PRESET = [
@@ -579,7 +581,9 @@ export default function LaporanPage() {
   const [brandId, setBrandId] = React.useState<string | null>(null);
   const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
   const [data, setData] = React.useState<HasilLaporan | null>(null);
-  const [daftarRekening, setDaftarRekening] = React.useState<{ id: string; nama: string }[]>([]);
+  const [daftarRekening, setDaftarRekening] = React.useState<
+    { id: string; nama: string; brandId: string | null; brandNama: string | null }[]
+  >([]);
   const [memuat, setMemuat] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -588,7 +592,16 @@ export default function LaporanPage() {
       try {
         const res = await fetch("/api/rekening");
         const json = await res.json();
-        if (res.ok) setDaftarRekening(json.rekening);
+        if (res.ok) {
+          setDaftarRekening(
+            (json.rekening as { id: string; nama: string; brand: { id: string; nama: string } | null }[]).map((r) => ({
+              id: r.id,
+              nama: r.nama,
+              brandId: r.brand?.id ?? null,
+              brandNama: r.brand?.nama ?? null,
+            }))
+          );
+        }
         const rb = await fetch("/api/brand");
         if (rb.ok) setDaftarBrand((await rb.json()).brand);
       } catch {
@@ -631,13 +644,18 @@ export default function LaporanPage() {
     }
   }
 
-  const adaTransaksi = (data?.jumlahTransaksiPeriode ?? 0) > 0;
+  const adaTransaksi = (data?.jumlahTransaksiPeriode ?? 0) > 0 || Boolean(data?.adaPenyesuaian);
+  const rekeningDipilih = daftarRekening.find((r) => r.id === rekeningId) ?? null;
+  const brandJurnal = brandId ?? rekeningDipilih?.brandId ?? null;
+  const namaBrandJurnal = brandId
+    ? (daftarBrand.find((b) => b.id === brandId)?.nama ?? null)
+    : (rekeningDipilih?.brandNama ?? null);
 
   return (
     <>
       <PageHeader
         judul="Laporan"
-        deskripsi="Laba Rugi, Neraca, Arus Kas, dan Perubahan Modal, dihitung dari transaksi dan kode akun yang tersimpan."
+        deskripsi="Laba Rugi, Neraca, Arus Kas, Perubahan Modal, dan Jurnal Penyesuaian. Jurnal penyesuaian tidak mengubah saldo bank."
       />
 
       <Card className="mb-4">
@@ -711,7 +729,15 @@ export default function LaporanPage() {
       </TabList>
 
       <Card>
-        {memuat && !data ? (
+        {tab === "jurnal" ? (
+          <JurnalPenyesuaianPanel
+            dari={dari}
+            sampai={sampai}
+            brandId={brandJurnal}
+            namaBrand={namaBrandJurnal}
+            rekeningTanpaBrand={Boolean(rekeningId && rekeningDipilih && !rekeningDipilih.brandId)}
+          />
+        ) : memuat && !data ? (
           <Skeleton baris={10} />
         ) : error && !data ? (
           <EmptyState pesan={error} />

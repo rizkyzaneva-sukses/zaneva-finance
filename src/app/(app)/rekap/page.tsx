@@ -21,6 +21,7 @@ import {
   EmptyState,
   Field,
   INPUT_CLASS,
+  Modal,
   PageHeader,
   TabButton,
   TabList,
@@ -40,12 +41,29 @@ interface BarisParsing {
   yakin: boolean;
 }
 
+type AsalKode = "aturan" | "belajar" | "ai" | "kosong" | "manual";
+
+interface SaranKode {
+  kodeAkunId: string | null;
+  statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
+  asal?: AsalKode;
+  duplikat?: "orang" | "persis" | null;
+  alasanDuplikat?: string | null;
+}
+
 interface BarisPreview extends BarisParsing {
   kodeAkunId: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
+  asalKode: AsalKode;
   catatan: string;
   /** Kosong = tidak di-split */
   rincian: RincianForm[];
+  /** Centang untuk Ubah Sekaligus — belum menulis ke database */
+  dipilih: boolean;
+  duplikat: boolean;
+  alasanDuplikat: string | null;
+  /** Duplikat defaultnya tidak ikut disimpan */
+  ikut: boolean;
 }
 
 interface Rekening {
@@ -80,8 +98,8 @@ export default function RekapPage() {
   const [tahap, setTahap] = React.useState("");
   const [menyimpan, setMenyimpan] = React.useState(false);
   const [splitIndex, setSplitIndex] = React.useState<number | null>(null);
-  /** Baris yang ditolak karena dianggap duplikat — ditahan di layar, bukan dibuang diam-diam */
-  const [adaYangDilewati, setAdaYangDilewati] = React.useState(false);
+  const [ubahKode, setUbahKode] = React.useState(false);
+  const [kodeTujuan, setKodeTujuan] = React.useState<string | null>(null);
 
   const inputGambar = React.useRef<HTMLInputElement>(null);
   const inputPdf = React.useRef<HTMLInputElement>(null);
@@ -160,33 +178,46 @@ export default function RekapPage() {
       }
 
       setTahap("Mencari kode akun...");
-      let saran: { kodeAkunId: string | null; statusKode: "KOSONG" | "SARAN_AI" }[] = [];
+      let saran: SaranKode[] = [];
       try {
         const res = await fetch("/api/klasifikasi", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ baris: hasil }),
+          body: JSON.stringify({ rekeningId, baris: hasil }),
         });
         const data = await res.json();
-        if (res.ok) saran = data.hasil;
-        else toast.warning(`Saran kode akun gagal: ${data.error}. Isi manual ya.`);
+        if (res.ok) {
+          saran = data.hasil;
+          if (data.peringatan) toast.warning(data.peringatan);
+        } else toast.warning(`Saran kode akun gagal: ${data.error}. Isi manual ya.`);
       } catch {
         toast.warning("Saran kode akun gagal dimuat, isi manual ya.");
       }
 
       setBaris(
-        hasil.map((b, i) => ({
-          ...b,
-          kodeAkunId: saran[i]?.kodeAkunId ?? null,
-          statusKode: saran[i]?.statusKode ?? "KOSONG",
-          catatan: "",
-          rincian: [],
-        }))
+        hasil.map((b, i) => {
+          const duplikat = Boolean(saran[i]?.duplikat);
+          return {
+            ...b,
+            kodeAkunId: saran[i]?.kodeAkunId ?? null,
+            statusKode: saran[i]?.statusKode ?? "KOSONG",
+            asalKode: saran[i]?.asal ?? "kosong",
+            catatan: "",
+            rincian: [],
+            dipilih: false,
+            duplikat,
+            alasanDuplikat: saran[i]?.alasanDuplikat ?? null,
+            ikut: !duplikat,
+          };
+        })
       );
 
       const ragu = hasil.filter((b) => !b.yakin).length;
+      const dup = saran.filter((s) => s?.duplikat).length;
       toast.success(
-        `${hasil.length} transaksi terbaca` + (ragu > 0 ? ` (${ragu} perlu dicek manual)` : "")
+        `${hasil.length} transaksi terbaca` +
+          (ragu > 0 ? ` (${ragu} perlu dicek manual)` : "") +
+          (dup > 0 ? `. ${dup} duplikat tidak ikut sampai dicentang` : "")
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memproses");
@@ -196,10 +227,19 @@ export default function RekapPage() {
     }
   }
 
-  async function simpan(paksa = false) {
-    if (!rekeningId || baris.length === 0) return;
+  function kunciBaris(b: { tanggalIso: string | null; keterangan: string; uangMasuk: number; uangKeluar: number }) {
+    return `${b.tanggalIso}|${b.keterangan}|${b.uangMasuk || b.uangKeluar}`;
+  }
 
-    const tanpaTanggal = baris.filter((b) => !b.tanggalIso).length;
+  async function simpan() {
+    if (!rekeningId || baris.length === 0) return;
+    const akan = baris.filter((b) => b.ikut);
+    if (akan.length === 0) {
+      toast.error("Tidak ada yang ikut disimpan. Centang Ikut pada baris duplikat kalau memang mau dimasukkan.");
+      return;
+    }
+
+    const tanpaTanggal = akan.filter((b) => !b.tanggalIso).length;
     if (tanpaTanggal > 0) {
       toast.error(`${tanpaTanggal} baris tanggalnya belum terisi. Perbaiki dulu.`);
       return;
@@ -213,9 +253,17 @@ export default function RekapPage() {
         body: JSON.stringify({
           rekeningId,
           sumber: mode === "pdf" ? "PDF" : "SCREENSHOT",
-          baris: baris.map((b) => ({
-            ...b,
-            paksa,
+          baris: akan.map((b) => ({
+            tanggalIso: b.tanggalIso,
+            keterangan: b.keterangan,
+            uangMasuk: b.uangMasuk,
+            uangKeluar: b.uangKeluar,
+            saldoBank: b.saldoBank,
+            kodeAkunId: b.rincian.length > 0 ? null : b.kodeAkunId,
+            statusKode: b.statusKode,
+            catatan: b.catatan,
+            yakin: b.yakin,
+            paksa: b.duplikat,
             rincian: b.rincian.length > 0 ? b.rincian : undefined,
           })),
         }),
@@ -223,28 +271,36 @@ export default function RekapPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      if (data.dilewati > 0) {
-        // Tahan baris yang dilewati di layar supaya bisa diperiksa, bukan hilang begitu saja.
-        const dilewati = new Set(
-          (data.barisDilewati as { tanggalTeks: string; keterangan: string; nominal: number }[]).map(
-            (d) => `${d.tanggalTeks}|${d.keterangan}|${d.nominal}`
-          )
+      const dilewati = new Set(
+        (data.barisDilewati as { tanggalTeks: string; keterangan: string; nominal: number }[]).map(
+          (d) => `${d.tanggalTeks}|${d.keterangan}|${d.nominal}`
+        )
+      );
+      const sisaDup = baris.filter((b) => !b.ikut).length;
+      const berikutnya = baris
+        .filter((b) => !b.ikut || dilewati.has(kunciBaris(b)))
+        .map((b) =>
+          dilewati.has(kunciBaris(b))
+            ? {
+                ...b,
+                duplikat: true,
+                ikut: false,
+                alasanDuplikat: b.alasanDuplikat ?? "Transaksi yang sama sudah ada",
+              }
+            : b
         );
-        setBaris((prev) =>
-          prev.filter((b) =>
-            dilewati.has(`${b.tanggalIso}|${b.keterangan}|${b.uangMasuk || b.uangKeluar}`)
-          )
-        );
-        setAdaYangDilewati(true);
-        toast.warning(
-          `${data.tersimpan} tersimpan, ${data.dilewati} dilewati karena sudah ada. Periksa di bawah.`
-        );
-      } else {
-        toast.success(`${data.tersimpan} transaksi tersimpan`);
-        setBaris([]);
+      setBaris(berikutnya);
+      if (berikutnya.length === 0) {
         setGambar([]);
         setPdf(null);
-        setAdaYangDilewati(false);
+      }
+
+      if (data.dilewati > 0) {
+        toast.warning(`${data.tersimpan} tersimpan, ${data.dilewati} duplikat tidak ikut.`);
+      } else if (sisaDup > 0) {
+        toast.success(`${data.tersimpan} tersimpan. ${sisaDup} duplikat tidak ikut.`);
+      } else {
+        toast.success(`${data.tersimpan} transaksi tersimpan`);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan");
@@ -253,11 +309,41 @@ export default function RekapPage() {
     }
   }
 
+  function terapkanKodeSekaligus() {
+    if (!kodeTujuan) {
+      toast.error("Pilih kode tujuan dulu");
+      return;
+    }
+    const jumlah = baris.filter((b) => b.dipilih).length;
+    if (jumlah === 0) return;
+    setBaris((prev) =>
+      prev.map((b) =>
+        b.dipilih
+          ? {
+              ...b,
+              kodeAkunId: kodeTujuan,
+              statusKode: "DIKONFIRMASI",
+              asalKode: "manual",
+              rincian: [],
+              dipilih: false,
+            }
+          : b
+      )
+    );
+    setUbahKode(false);
+    setKodeTujuan(null);
+    toast.success(`${jumlah} transaksi diubah di preview. Belum tersimpan — klik Simpan Semua.`);
+  }
+
   const belumAdaRekening = rekening.length === 0;
   const jumlahRagu = baris.filter((b) => !b.yakin).length;
   // Baris yang di-split dianggap sudah punya kode: kodenya ada di rinciannya.
   const jumlahTanpaKode = baris.filter((b) => !b.kodeAkunId && b.rincian.length === 0).length;
   const jumlahSplit = baris.filter((b) => b.rincian.length > 0).length;
+  const jumlahDipilih = baris.filter((b) => b.dipilih).length;
+  const jumlahIkut = baris.filter((b) => b.ikut).length;
+  const jumlahDuplikat = baris.filter((b) => b.duplikat).length;
+  const semuaDipilih = baris.length > 0 && jumlahDipilih === baris.length;
   const barisSplit = splitIndex !== null ? baris[splitIndex] : null;
 
   return (
@@ -447,6 +533,7 @@ export default function RekapPage() {
               <div className="mt-1 flex flex-wrap gap-2 text-xs">
                 {jumlahRagu > 0 && <Badge warna="merah">{jumlahRagu} perlu dicek</Badge>}
                 {jumlahTanpaKode > 0 && <Badge warna="kuning">{jumlahTanpaKode} belum ada kode</Badge>}
+                {jumlahDuplikat > 0 && <Badge warna="kuning">{jumlahDuplikat} duplikat</Badge>}
                 {jumlahSplit > 0 && <Badge warna="biru">{jumlahSplit} di-split</Badge>}
                 <Badge warna="biru">
                   <Sparkles className="mr-1 inline h-3 w-3" />
@@ -454,35 +541,33 @@ export default function RekapPage() {
                 </Badge>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 varian="sekunder"
+                disabled={jumlahDipilih === 0}
                 onClick={() => {
-                  setBaris([]);
-                  setAdaYangDilewati(false);
+                  setKodeTujuan(null);
+                  setUbahKode(true);
                 }}
               >
-                {adaYangDilewati ? "Buang baris ini" : "Buang hasil"}
+                Ubah Sekaligus{jumlahDipilih > 0 ? ` (${jumlahDipilih})` : ""}
               </Button>
-              <Button
-                varian="sukses"
-                onClick={() => simpan(adaYangDilewati)}
-                loading={menyimpan}
-              >
+              <Button varian="sekunder" onClick={() => setBaris([])}>
+                Buang hasil
+              </Button>
+              <Button varian="sukses" onClick={simpan} loading={menyimpan}>
                 <Save className="h-4 w-4" />
-                {adaYangDilewati ? "Tetap masukkan" : "Simpan ke Rekap"}
+                Simpan Semua ({jumlahIkut})
               </Button>
             </div>
           </div>
 
-          {adaYangDilewati && (
+          {jumlahDuplikat > 0 && (
             <div className="mb-3 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
-                Baris di bawah ini <strong>belum tersimpan</strong> karena transaksi dengan tanggal,
-                nominal, dan keterangan yang sama persis sudah ada di rekening ini. Biasanya ini
-                screenshot yang tumpang tindih. Tapi kalau memang ada dua transaksi kembar yang
-                benar-benar terjadi, klik <strong>Tetap masukkan</strong>.
+                Baris bertanda <strong>Duplikat</strong> tidak ikut disimpan. Centang <strong>Ikut</strong> hanya
+                kalau transaksi itu benar-benar terjadi lagi (hari, nama, dan nominal yang sama).
               </span>
             </div>
           )}
@@ -491,6 +576,17 @@ export default function RekapPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
+                  <th className="w-10 px-2 py-2">
+                    <input
+                      type="checkbox"
+                      checked={semuaDipilih}
+                      onChange={(e) =>
+                        setBaris((prev) => prev.map((b) => ({ ...b, dipilih: e.target.checked })))
+                      }
+                      aria-label="Pilih semua untuk ubah kode"
+                      className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+                    />
+                  </th>
                   <th className="whitespace-nowrap px-2 py-2 font-medium">Tanggal</th>
                   <th className="min-w-56 px-2 py-2 font-medium">Keterangan</th>
                   <th className="min-w-52 px-2 py-2 font-medium">Kode akun</th>
@@ -506,9 +602,20 @@ export default function RekapPage() {
                   <tr
                     className={cn(
                       "border-b border-gray-100 align-top dark:border-zinc-800",
-                      !b.yakin && "bg-red-50 dark:bg-red-900/20"
+                      !b.yakin && "bg-red-50 dark:bg-red-900/20",
+                      b.duplikat && !b.ikut && "bg-amber-50 dark:bg-amber-950/30",
+                      b.duplikat && b.ikut && "bg-amber-50/70 dark:bg-amber-950/20"
                     )}
                   >
+                    <td className="px-2 py-2">
+                      <input
+                        type="checkbox"
+                        checked={b.dipilih}
+                        onChange={(e) => ubahBaris(i, { dipilih: e.target.checked })}
+                        aria-label="Pilih untuk ubah kode sekaligus"
+                        className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+                      />
+                    </td>
                     <td className="whitespace-nowrap px-2 py-2">
                       {b.tanggalIso ? (
                         <span className="text-gray-900 dark:text-gray-50">
@@ -531,6 +638,22 @@ export default function RekapPage() {
                           <AlertTriangle className="h-3.5 w-3.5" />
                         </span>
                       )}
+                      {b.duplikat && (
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          <span title={b.alasanDuplikat ?? undefined}>
+                            <Badge warna="kuning">Duplikat</Badge>
+                          </span>
+                          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-800 dark:text-gray-200">
+                            <input
+                              type="checkbox"
+                              checked={b.ikut}
+                              onChange={(e) => ubahBaris(i, { ikut: e.target.checked })}
+                              className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+                            />
+                            Ikut
+                          </label>
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-2 text-gray-900 dark:text-gray-50">{b.keterangan}</td>
                     <td className="px-2 py-2">
@@ -548,6 +671,7 @@ export default function RekapPage() {
                               ubahBaris(i, {
                                 kodeAkunId: v,
                                 statusKode: v ? "DIKONFIRMASI" : "KOSONG",
+                                asalKode: "manual",
                               })
                             }
                             options={opsiKode}
@@ -555,9 +679,19 @@ export default function RekapPage() {
                             searchPlaceholder="Cari kode atau nama..."
                             emptyText="Kode tidak ditemukan"
                           />
-                          {b.statusKode === "SARAN_AI" && (
-                            <span className="mt-1 inline-block text-xs text-blue-700 dark:text-blue-300">
+                          {b.asalKode === "ai" && b.statusKode === "SARAN_AI" && (
+                            <span className="mt-1 inline-block text-xs text-blue-800 dark:text-blue-300">
                               saran AI
+                            </span>
+                          )}
+                          {b.asalKode === "aturan" && (
+                            <span className="mt-1 inline-block text-xs text-blue-800 dark:text-blue-300">
+                              default penjualan
+                            </span>
+                          )}
+                          {b.asalKode === "belajar" && (
+                            <span className="mt-1 inline-block text-xs text-emerald-800 dark:text-emerald-300">
+                              dari koreksi sebelumnya
                             </span>
                           )}
                         </>
@@ -612,6 +746,7 @@ export default function RekapPage() {
                         className="border-b border-gray-100 bg-gray-50 dark:border-zinc-800 dark:bg-zinc-800/40"
                       >
                         <td className="px-2 py-1.5"></td>
+                        <td className="px-2 py-1.5"></td>
                         <td className="px-2 py-1.5 pl-6 text-xs text-gray-600 dark:text-gray-400">
                           ↳ {r.keterangan || kode?.nama}
                         </td>
@@ -646,7 +781,12 @@ export default function RekapPage() {
           bolehBatalkan={barisSplit.rincian.length > 0}
           onTutup={() => setSplitIndex(null)}
           onSimpan={(rincian) => {
-            ubahBaris(splitIndex, { rincian, kodeAkunId: null, statusKode: "DIKONFIRMASI" });
+            ubahBaris(splitIndex, {
+              rincian,
+              kodeAkunId: null,
+              statusKode: "DIKONFIRMASI",
+              asalKode: "manual",
+            });
             setSplitIndex(null);
           }}
           onBatalkanSplit={() => {
@@ -655,6 +795,34 @@ export default function RekapPage() {
           }}
         />
       )}
+
+      <Modal
+        buka={ubahKode}
+        judul="Ubah kode sekaligus"
+        deskripsi={`${jumlahDipilih} transaksi di preview akan memakai kode ini. Belum tersimpan ke rekap sampai kamu klik Simpan Semua.`}
+        onTutup={() => setUbahKode(false)}
+      >
+        <div className="grid gap-4">
+          <SearchableSelect
+            label="Kode tujuan"
+            required
+            value={kodeTujuan}
+            onChange={setKodeTujuan}
+            options={opsiKode}
+            placeholder="Pilih kode"
+            searchPlaceholder="Cari kode atau nama..."
+            emptyText="Kode tidak ditemukan"
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" varian="sekunder" onClick={() => setUbahKode(false)}>
+              Batal
+            </Button>
+            <Button type="button" onClick={terapkanKodeSekaligus} disabled={!kodeTujuan}>
+              Terapkan ke preview
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {memproses && (
         <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">

@@ -8,7 +8,9 @@ import type { AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
  * Prinsip: tiap transaksi punya "net" = uang masuk − uang keluar (dalam sen,
  * bilangan bulat). Transaksi yang di-split dipecah jadi entri per rincian,
  * jadi induknya tidak ikut terhitung dua kali. Semua laporan dihitung dari
- * kumpulan entri yang sama, sehingga identitas akuntansi terjaga:
+ * kumpulan entri yang sama, sehingga identitas akuntansi terjaga.
+ * Jurnal penyesuaian ikut di laba rugi, neraca, dan perubahan modal, tetapi
+ * tidak di arus kas: total debit-kreditnya nol dan tidak menyentuh rekening.
  *
  *   Kas + Aset lain = Saldo awal + Liabilitas + Modal + Laba + Belum diklasifikasi
  *
@@ -195,12 +197,49 @@ async function ambilEntri(sampai: string, rekeningIds: string[] | null) {
   return entri;
 }
 
+/** Jurnal penyesuaian sampai tanggal tertentu. Net debit = seperti uang keluar. */
+async function ambilPenyesuaian(sampai: string, brandIds: string[] | null): Promise<Entri[]> {
+  const [jurnal, kodeList] = await Promise.all([
+    prisma.jurnalPenyesuaian.findMany({
+      where: {
+        tanggal: { lte: new Date(`${sampai}T00:00:00.000Z`) },
+        ...(brandIds ? { brandId: { in: brandIds } } : {}),
+      },
+      select: {
+        tanggal: true,
+        baris: { select: { kodeAkunId: true, debit: true, kredit: true } },
+      },
+    }),
+    prisma.kodeAkun.findMany({
+      select: { id: true, kode: true, nama: true, kelompok: true, laporan: true, aktivitasKas: true },
+    }),
+  ]);
+  const peta = new Map<string, KodeInfo>(kodeList.map((k) => [k.id, k]));
+  const entri: Entri[] = [];
+  for (const j of jurnal) {
+    const tanggal = j.tanggal.toISOString().slice(0, 10);
+    for (const b of j.baris) {
+      const debit = sen(b.debit);
+      const kredit = sen(b.kredit);
+      if (debit === 0 && kredit === 0) continue;
+      entri.push({
+        tanggal,
+        rekeningId: "",
+        kode: peta.get(b.kodeAkunId) ?? null,
+        net: kredit - debit,
+      });
+    }
+  }
+  return entri;
+}
+
 /**
  * Net (uang masuk − uang keluar) per kode akun sampai tanggal tertentu, rincian
  * split ikut dihitung. Dipakai untuk saldo alokasi: pemakaian = −net.
  */
 export async function netPerKodeAkun(sampai: string): Promise<Map<string, number>> {
-  const entri = await ambilEntri(sampai, null);
+  const [bank, jurnal] = await Promise.all([ambilEntri(sampai, null), ambilPenyesuaian(sampai, null)]);
+  const entri = [...bank, ...jurnal];
   const hasil = new Map<string, Sen>();
   for (const e of entri) {
     if (!e.kode) continue;
@@ -250,9 +289,10 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
   // Persediaan tidak bisa dibagi per rekening, jadi hanya muncul di laporan semua/per brand.
   const pakaiPersediaan = !rekeningId;
 
-  const [entri, rekeningList, kasTersimpanSen, menungguAcc, persediaanHitung, kode599, rekeningTanpaBrand] =
+  const [entriBank, entriJurnal, rekeningList, kasTersimpanSen, menungguAcc, persediaanHitung, kode599, rekeningTanpaBrand] =
     await Promise.all([
     ambilEntri(sampai, rekeningIds),
+    rekeningId ? Promise.resolve([] as Entri[]) : ambilPenyesuaian(sampai, brandIds),
     prisma.rekening.findMany({
       where: rekeningIds ? { id: { in: rekeningIds } } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
@@ -282,8 +322,11 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
   const selisihHppSen = P.sebelumPeriode - P.akhir;
 
   const saldoAwalSen = rekeningList.reduce((s, r) => s + sen(r.saldoAwal), 0);
+  const entri = [...entriBank, ...entriJurnal];
   const dalamPeriode = entri.filter((e) => e.tanggal >= dari && e.tanggal <= sampai);
   const sebelumPeriode = entri.filter((e) => e.tanggal < dari);
+  const dalamPeriodeKas = entriBank.filter((e) => e.tanggal >= dari && e.tanggal <= sampai);
+  const sebelumPeriodeKas = entriBank.filter((e) => e.tanggal < dari);
   const tahunBerjalanMulai = `${sampai.slice(0, 4)}-01-01`;
 
   const labaDari = (list: Entri[]) =>
@@ -324,7 +367,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
 
   // ───────────── Neraca (per tanggal `sampai`) ─────────────
   const netPerRekening = new Map<string, Sen>();
-  for (const e of entri) {
+  for (const e of entriBank) {
     netPerRekening.set(e.rekeningId, (netPerRekening.get(e.rekeningId) ?? 0) + e.net);
   }
   const kas = rekeningList.map((r) => ({
@@ -396,7 +439,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
     PINDAH_DANA: [],
     BELUM: [],
   };
-  for (const a of agregatPerKode(dalamPeriode)) {
+  for (const a of agregatPerKode(dalamPeriodeKas)) {
     const seksi = a.k?.aktivitasKas ?? "BELUM";
     seksiKas[seksi].push(baris(a, a.net));
   }
@@ -404,8 +447,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
     seksiKas[k] = tanpaNol(seksiKas[k]).sort(urutKode);
   }
 
-  const kasAwalSen = saldoAwalSen + sebelumPeriode.reduce((s, e) => s + e.net, 0);
-  const kenaikanSen = dalamPeriode.reduce((s, e) => s + e.net, 0);
+  const kasAwalSen = saldoAwalSen + sebelumPeriodeKas.reduce((s, e) => s + e.net, 0);
+  const kenaikanSen = dalamPeriodeKas.reduce((s, e) => s + e.net, 0);
 
   // ───────────── Perubahan Modal (periode) ─────────────
   const modalSebelumSen = sebelumPeriode
@@ -428,7 +471,8 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
   return {
     periode: { dari, sampai },
     rekening: rekeningList.map((r) => ({ id: r.id, nama: r.nama })),
-    jumlahTransaksiPeriode: dalamPeriode.length,
+    jumlahTransaksiPeriode: dalamPeriodeKas.length,
+    adaPenyesuaian: entriJurnal.some((e) => e.tanggal >= dari && e.tanggal <= sampai),
     menungguAcc,
 
     cakupan: {

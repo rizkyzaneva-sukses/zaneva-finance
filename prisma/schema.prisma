@@ -95,9 +95,11 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  transaksiDibuat Transaksi[]         @relation("TransaksiDibuat")
-  transaksiDiubah Transaksi[]         @relation("TransaksiDiubah")
-  transaksiDiAcc  Transaksi[]         @relation("TransaksiDiAcc")
+  transaksiDibuat        Transaksi[] @relation("TransaksiDibuat")
+  transaksiDiubah        Transaksi[] @relation("TransaksiDiubah")
+  transaksiDiAcc         Transaksi[] @relation("TransaksiDiAcc")
+  transaksiDiverifikasi  Transaksi[] @relation("TransaksiDiverifikasi")
+  jurnalPenyesuaian      JurnalPenyesuaian[]
   auditLogs       AuditLog[]
   periodeDisahkan PeriodeLaba[]
   distribusiAcc   DistribusiAlokasi[]
@@ -202,9 +204,11 @@ model KodeAkun {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  transaksi  Transaksi[]
-  rincian    TransaksiRincian[]
-  distribusi DistribusiAlokasi[]
+  transaksi         Transaksi[]
+  rincian           TransaksiRincian[]
+  distribusi        DistribusiAlokasi[]
+  contohKlasifikasi ContohKlasifikasi[]
+  jurnalBaris       JurnalPenyesuaianBaris[]
 }
 
 /// Tutup buku bulanan: OWNER mengesahkan laba bersih satu bulan. Angka laba
@@ -281,6 +285,11 @@ model Transaksi {
   accOleh   User?     @relation("TransaksiDiAcc", fields: [accOlehId], references: [id])
   accPada   DateTime?
 
+  /// Verifikasi penjualan kode 400. Kosong = belum dicek. Bukan ACC bendahara/finance.
+  diverifikasiPada   DateTime?
+  diverifikasiOlehId String?
+  diverifikasiOleh   User?     @relation("TransaksiDiverifikasi", fields: [diverifikasiOlehId], references: [id], onDelete: SetNull)
+
   createdById String?
   createdBy   User?    @relation("TransaksiDibuat", fields: [createdById], references: [id])
   updatedById String?
@@ -298,6 +307,24 @@ model Transaksi {
   @@index([kodeAkunId])
   @@index([statusKode])
   @@index([statusAcc])
+  @@index([diverifikasiPada])
+}
+
+/// Koreksi kode yang dipilih tim, dipakai lagi saat unggahan berikutnya.
+/// Bukan fine-tune model — hanya contoh yang dimasukkan ke prompt dan aturan.
+model ContohKlasifikasi {
+  id         String   @id @default(cuid())
+  /// Sidik jari keterangan (biasanya nama lawan), sudah dirapikan.
+  kunci      String
+  /// "masuk" atau "keluar"
+  arah       String
+  kodeAkunId String
+  kodeAkun   KodeAkun @relation(fields: [kodeAkunId], references: [id], onDelete: Cascade)
+  jumlah     Int      @default(1)
+  terakhirPada DateTime @default(now())
+
+  @@unique([kunci, arah])
+  @@index([kodeAkunId])
 }
 
 model TransaksiRincian {
@@ -351,6 +378,51 @@ model Brand {
   produk    Produk[]
   soItem    StokOpnameItem[]
   penugasan UserBrand[]
+  jurnal    JurnalPenyesuaian[]
+}
+
+/// Jurnal yang tidak menggerakkan rekening. Debit = kredit.
+/// Reklasifikasi (deposit → beban) tidak dibalik. Akrual dibalik tanggal 1 bulan berikutnya.
+model JurnalPenyesuaian {
+  id         String   @id @default(cuid())
+  brandId    String
+  brand      Brand    @relation(fields: [brandId], references: [id])
+  tanggal    DateTime @db.Date
+  /// Nomor urut per brand, untuk tampilan JP-12.
+  nomor      Int
+  keterangan String
+
+  /// true = akrual yang punya jurnal pembalik di awal bulan berikutnya.
+  dibalik Boolean @default(false)
+
+  /// Terisi kalau baris ini sendiri adalah jurnal pembalik.
+  pembalikDariId String?             @unique
+  pembalikDari   JurnalPenyesuaian?  @relation("Pembalik", fields: [pembalikDariId], references: [id], onDelete: Cascade)
+  pembalik       JurnalPenyesuaian?  @relation("Pembalik")
+
+  dibuatOlehId String?
+  dibuatOleh   User?    @relation(fields: [dibuatOlehId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  baris JurnalPenyesuaianBaris[]
+
+  @@unique([brandId, nomor])
+  @@index([brandId, tanggal])
+}
+
+model JurnalPenyesuaianBaris {
+  id         String             @id @default(cuid())
+  jurnalId   String
+  jurnal     JurnalPenyesuaian  @relation(fields: [jurnalId], references: [id], onDelete: Cascade)
+  kodeAkunId String
+  kodeAkun   KodeAkun           @relation(fields: [kodeAkunId], references: [id])
+  debit      Decimal            @default(0) @db.Decimal(18, 2)
+  kredit     Decimal            @default(0) @db.Decimal(18, 2)
+  urutan     Int                @default(0)
+
+  @@index([jurnalId])
+  @@index([kodeAkunId])
 }
 
 /// Master produk: satu SKU satu baris, HPP per unit. Nilai persediaan = stok x HPP.

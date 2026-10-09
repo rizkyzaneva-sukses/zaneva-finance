@@ -41,6 +41,7 @@ export async function GET(req: Request) {
           createdBy: { select: { nama: true } },
           updatedBy: { select: { nama: true } },
           accOleh: { select: { nama: true } },
+          diverifikasiOleh: { select: { nama: true } },
         },
       }),
       prisma.transaksi.count({ where }),
