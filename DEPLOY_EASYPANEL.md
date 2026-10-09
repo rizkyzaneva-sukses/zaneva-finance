@@ -4,9 +4,8 @@ Zaneva Finance butuh **PostgreSQL** dan **satu volume persisten** (untuk file Do
 Migrasi database dan seed data awal dijalankan otomatis oleh container setiap start
 (`docker-entrypoint.sh`), jadi tidak ada langkah manual untuk skema.
 
-> Catatan: alur Docker ini belum pernah dijalankan end-to-end oleh saya (tidak ada Docker di
-> mesin pengembangan). Build lokal (`npm run build`) dan `prisma migrate deploy` sudah teruji;
-> kalau deploy pertama gagal, kirim log containernya.
+File yang dipakai EasyPanel hanya satu: `Dockerfile` di root repo. Saat container hidup,
+>`docker-entrypoint.sh` menunggu Postgres, menjalankan migrasi, mengisi data awal, lalu menyalakan aplikasi di port 3000.
 
 ## 1. Push ke GitHub
 ```bash
@@ -39,7 +38,7 @@ New Service → **App** → Source: GitHub → pilih repo
 | `NEXT_PUBLIC_APP_NAME` | `Zaneva Finance` |
 | `OPENROUTER_API_KEY` | API key dari openrouter.ai |
 | `OPENROUTER_MODEL` | default `google/gemini-2.5-flash` |
-| `DOKUMEN_DIR` | `/data/dokumen` |
+| `DOKUMEN_DIR` | sudah `/data/dokumen` di image. Isi lagi hanya kalau foldernya beda |
 
 ## 4. Volume untuk Dokumen (WAJIB)
 App → **Mounts** → tambah **Volume**, mount path `/data`.
