@@ -340,6 +340,7 @@ export default function RekeningPage() {
                       <tr className="text-left text-gray-600 dark:text-gray-300">
                         <th className="px-2 py-1.5 font-medium">Status</th>
                         <th className="px-2 py-1.5 font-medium">Nama</th>
+                        <th className="px-2 py-1.5 font-medium">No. rekening</th>
                         <th className="px-2 py-1.5 font-medium">Bank</th>
                         <th className="px-2 py-1.5 font-medium">Brand</th>
                         <th className="px-2 py-1.5 text-right font-medium">Saldo awal</th>
@@ -358,6 +359,7 @@ export default function RekeningPage() {
                             )}
                           </td>
                           <td className="px-2 py-1 text-gray-900 dark:text-gray-50">{r.nama}</td>
+                          <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{r.nomorRekening || "—"}</td>
                           <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{r.bank}</td>
                           <td className="px-2 py-1 text-gray-600 dark:text-gray-400">{r.brand ?? "—"}</td>
                           <td className="px-2 py-1 text-right tabular-nums text-gray-900 dark:text-gray-50">
@@ -411,7 +413,7 @@ export default function RekeningPage() {
       >
         {form && (
           <form onSubmit={simpan} className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nama rekening" required hint='Bebas, contoh: "BCA CV 1"'>
+            <Field label="Nama rekening" required hint="Boleh sama dengan rekening lain. Contoh: BCA CV 1">
               <input
                 required
                 value={form.nama}
@@ -442,11 +444,15 @@ export default function RekeningPage() {
               Laporan per brand memuat rekening milik brand itu. Rekening tanpa brand hanya muncul di laporan Semua brand.
             </p>
 
-            <Field label="Nomor rekening">
+            <Field
+              label="Nomor rekening"
+              hint="Harus unik. Spasi diabaikan. Kosongkan hanya untuk kas yang tidak punya nomor."
+            >
               <input
                 value={form.nomorRekening}
                 onChange={(e) => setForm({ ...form, nomorRekening: e.target.value })}
-                placeholder="Opsional"
+                placeholder="1234567890"
+                maxLength={40}
                 className={INPUT_CLASS}
               />
             </Field>

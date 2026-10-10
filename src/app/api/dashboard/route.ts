@@ -43,7 +43,7 @@ export async function GET(req: Request) {
           ...(auth.user.rekeningIds ? { id: { in: rekeningBrand ?? auth.user.rekeningIds } } : {}),
         },
         orderBy: [{ urutan: "asc" }, { nama: "asc" }],
-        select: { id: true, nama: true, bank: true, saldoAwal: true, brandId: true },
+        select: { id: true, nama: true, nomorRekening: true, bank: true, saldoAwal: true, brandId: true },
       }),
       prisma.transaksi.aggregate({
         where,
@@ -98,6 +98,7 @@ export async function GET(req: Request) {
         return {
           id: r.id,
           nama: r.nama,
+          nomorRekening: r.nomorRekening,
           bank: r.bank,
           brandId: r.brandId,
           saldo: Number(terakhir?.saldo ?? r.saldoAwal),

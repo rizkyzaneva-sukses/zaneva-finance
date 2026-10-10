@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/primitives";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { SplitEditor, type RincianForm } from "@/components/split-editor";
-import { cn, formatAngka, formatTanggal, labelBank } from "@/lib/utils";
+import { cn, formatAngka, formatTanggal, labelBank, labelRekening } from "@/lib/utils";
 
 interface Transaksi {
   id: string;
@@ -45,7 +45,7 @@ interface Transaksi {
   statusAcc: "DISETUJUI" | "MENUNGGU" | "PERLU_FINANCE";
   accOleh: { nama: string } | null;
   yakin: boolean;
-  rekening: { id: string; nama: string };
+  rekening: { id: string; nama: string; nomorRekening?: string | null };
   kodeAkun: { id: string; kode: string; nama: string } | null;
   rincian: {
     id: string;
@@ -173,9 +173,9 @@ function TransaksiIsi() {
         setRekening(
           d1.rekening
             .filter((r: { aktif: boolean }) => r.aktif)
-            .map((r: { id: string; nama: string; bank: string }) => ({
+            .map((r: { id: string; nama: string; bank: string; nomorRekening?: string | null }) => ({
               value: r.id,
-              label: r.nama,
+              label: labelRekening(r.nama, r.nomorRekening),
               hint: labelBank(r.bank),
             }))
         );
@@ -682,7 +682,7 @@ function TransaksiIsi() {
                         )}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
-                        {t.rekening.nama}
+                        {labelRekening(t.rekening.nama, t.rekening.nomorRekening)}
                       </td>
                       <td className="px-2 py-2 text-gray-900 dark:text-gray-50">{t.keterangan}</td>
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">

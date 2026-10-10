@@ -5,6 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Nomor rekening untuk disimpan dan dibandingkan. Spasi tidak dihitung. Kosong = tidak punya nomor. */
+export function normNomorRekening(raw: unknown): string | null {
+  const t = String(raw ?? "").replace(/\s+/g, "");
+  return t.length > 0 ? t : null;
+}
+
+/** Nama tampilan. Nomor ditambahkan kalau ada, supaya dua rekening senama tetap bisa dibedakan. */
+export function labelRekening(nama: string, nomor?: string | null): string {
+  const n = normNomorRekening(nomor);
+  return n ? `${nama} · ${n}` : nama;
+}
+
 /** PETTY_CASH → "Petty Cash (kas tunai)", MANDIRI → "Mandiri", dst. */
 export function labelBank(bank: string): string {
   const peta: Record<string, string> = {

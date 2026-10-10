@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import { Badge, Card, EmptyState, PageHeader, Skeleton, INPUT_CLASS } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { CashFlowChart, type TitikBulan } from "@/components/cash-flow-chart";
-import { cn, formatRupiah, formatTanggal, labelBank } from "@/lib/utils";
+import { cn, formatRupiah, formatTanggal, labelBank, labelRekening } from "@/lib/utils";
 
 interface KartuRekening {
   id: string;
   nama: string;
+  nomorRekening?: string | null;
   bank: string;
   saldo: number;
   tanggalTerakhir: string | null;
@@ -294,7 +295,12 @@ export default function DashboardPage() {
   }, []);
 
   const opsiRekening = React.useMemo(
-    () => (data?.kartuRekening ?? []).map((r) => ({ value: r.id, label: r.nama, hint: labelBank(r.bank) })),
+    () =>
+      (data?.kartuRekening ?? []).map((r) => ({
+        value: r.id,
+        label: labelRekening(r.nama, r.nomorRekening),
+        hint: labelBank(r.bank),
+      })),
     [data]
   );
 
@@ -442,7 +448,7 @@ export default function DashboardPage() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <div className="truncate font-medium text-gray-900 dark:text-gray-50">
-                          {r.nama}
+                          {labelRekening(r.nama, r.nomorRekening)}
                         </div>
                         <div className="text-xs text-gray-600 dark:text-gray-400">{labelBank(r.bank)}</div>
                       </div>

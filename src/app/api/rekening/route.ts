@@ -5,6 +5,7 @@ import { bolehBrand } from "@/lib/akses";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { Bank, Role } from "@/generated/prisma/enums";
+import { normNomorRekening } from "@/lib/utils";
 
 export async function GET() {
   const auth = await wajibLogin();
@@ -49,16 +50,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Pilih salah satu brand yang ditugaskan ke kamu" }, { status: 403 });
     }
 
-    const sudahAda = await prisma.rekening.findUnique({ where: { nama } });
-    if (sudahAda) {
-      return NextResponse.json({ error: `Rekening "${nama}" sudah ada` }, { status: 409 });
+    const nomorRekening = normNomorRekening(body.nomorRekening);
+    if (nomorRekening && nomorRekening.length > 32) {
+      return NextResponse.json({ error: "Nomor rekening maksimal 32 karakter" }, { status: 400 });
+    }
+    if (nomorRekening) {
+      const bentrok = await prisma.rekening.findUnique({ where: { nomorRekening } });
+      if (bentrok) {
+        return NextResponse.json(
+          { error: `Nomor rekening ${nomorRekening} sudah dipakai oleh "${bentrok.nama}"` },
+          { status: 409 }
+        );
+      }
     }
 
     const rekening = await prisma.rekening.create({
       data: {
         nama,
         bank,
-        nomorRekening: String(body.nomorRekening ?? "").trim() || null,
+        nomorRekening,
         saldoAwal: new Prisma.Decimal(body.saldoAwal || 0),
         tanggalSaldoAwal: new Date(`${tanggalSaldoAwal}T00:00:00.000Z`),
         urutan: Number(body.urutan) || 0,
@@ -68,6 +78,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ rekening });
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "Nomor rekening itu sudah dipakai" }, { status: 409 });
+    }
     return apiError(err);
   }
 }

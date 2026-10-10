@@ -15,7 +15,7 @@ import {
   Skeleton,
 } from "@/components/ui/primitives";
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
-import { labelBank } from "@/lib/utils";
+import { labelBank, labelRekening } from "@/lib/utils";
 
 interface Dokumen {
   id: string;
@@ -26,7 +26,7 @@ interface Dokumen {
   catatan: string | null;
   diunggahPada: string;
   fileDihapusPada: string | null;
-  rekening: { nama: string };
+  rekening: { nama: string; nomorRekening?: string | null };
   diunggahOleh: { nama: string } | null;
 }
 
@@ -127,9 +127,9 @@ export default function DokumenPage() {
         setRekening(
           d.rekening
             .filter((r: { aktif: boolean }) => r.aktif)
-            .map((r: { id: string; nama: string; bank: string }) => ({
+            .map((r: { id: string; nama: string; bank: string; nomorRekening?: string | null }) => ({
               value: r.id,
-              label: r.nama,
+              label: labelRekening(r.nama, r.nomorRekening),
               hint: labelBank(r.bank),
             }))
         );
@@ -403,7 +403,9 @@ export default function DokumenPage() {
                   <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                     <div>
                       <dt className="text-gray-600 dark:text-gray-400">Rekening</dt>
-                      <dd className="break-words text-gray-900 dark:text-gray-50">{d.rekening.nama}</dd>
+                      <dd className="break-words text-gray-900 dark:text-gray-50">
+                        {labelRekening(d.rekening.nama, d.rekening.nomorRekening)}
+                      </dd>
                     </div>
                     <div>
                       <dt className="text-gray-600 dark:text-gray-400">Periode</dt>
@@ -458,7 +460,9 @@ export default function DokumenPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">{d.rekening.nama}</td>
+                      <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
+                        {labelRekening(d.rekening.nama, d.rekening.nomorRekening)}
+                      </td>
                       <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
                         {periodeTeks(d.periode)}
                       </td>

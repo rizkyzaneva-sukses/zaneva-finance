@@ -55,9 +55,6 @@ export async function POST(req: Request) {
       async (tx) => {
         const brands = await tx.brand.findMany({ select: { id: true, kunci: true } });
         const idBrand = new Map(brands.map((b) => [b.kunci, b.id]));
-        const rekeningLama = await tx.rekening.findMany({ select: { id: true, nama: true } });
-        const idRek = new Map(rekeningLama.map((r) => [r.nama.toLowerCase(), r.id]));
-
         // Batasi: brand yang bukan milik pengguna ditolak (bukan di-skip diam-diam).
         for (const r of [...h.baru, ...h.ubah]) {
           if (r.brandKunci && !bolehBrand(auth.user, idBrand.get(r.brandKunci) ?? null)) {
@@ -81,11 +78,11 @@ export async function POST(req: Request) {
 
         let dihitungUlang = 0;
         for (const r of h.ubah) {
-          const id = idRek.get(r.nama.toLowerCase());
-          if (!id) continue;
+          if (!r.id) continue;
           await tx.rekening.update({
-            where: { id },
+            where: { id: r.id },
             data: {
+              nama: r.nama,
               bank: r.bank,
               nomorRekening: r.nomorRekening,
               saldoAwal: new Prisma.Decimal(r.saldoAwal),
@@ -95,7 +92,7 @@ export async function POST(req: Request) {
             },
           });
           if (r.diubah.includes("saldoAwal") || r.diubah.includes("tanggalSaldoAwal")) {
-            await hitungUlangSaldo(tx, id);
+            await hitungUlangSaldo(tx, r.id);
             dihitungUlang++;
           }
         }
@@ -121,6 +118,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ...ringkas, ...hasil, diterapkan: true });
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "Nomor rekening sudah dipakai rekening lain" }, { status: 409 });
+    }
     return apiError(err);
   }
 }

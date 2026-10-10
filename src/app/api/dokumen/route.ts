@@ -47,7 +47,7 @@ export async function GET(req: Request) {
         skip: (halaman - 1) * perHalaman,
         take: perHalaman,
         include: {
-          rekening: { select: { nama: true } },
+          rekening: { select: { nama: true, nomorRekening: true } },
           diunggahOleh: { select: { nama: true } },
         },
       }),

@@ -15,7 +15,7 @@ import {
   TabList,
 } from "@/components/ui/primitives";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { cn, formatRupiah } from "@/lib/utils";
+import { cn, formatRupiah, labelRekening } from "@/lib/utils";
 import type { BarisLaporan, HasilLaporan } from "@/lib/laporan";
 import { JurnalPenyesuaianPanel } from "./jurnal-panel";
 
@@ -582,7 +582,7 @@ export default function LaporanPage() {
   const [daftarBrand, setDaftarBrand] = React.useState<{ id: string; nama: string }[]>([]);
   const [data, setData] = React.useState<HasilLaporan | null>(null);
   const [daftarRekening, setDaftarRekening] = React.useState<
-    { id: string; nama: string; brandId: string | null; brandNama: string | null }[]
+    { id: string; nama: string; nomorRekening: string | null; brandId: string | null; brandNama: string | null }[]
   >([]);
   const [memuat, setMemuat] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -594,9 +594,10 @@ export default function LaporanPage() {
         const json = await res.json();
         if (res.ok) {
           setDaftarRekening(
-            (json.rekening as { id: string; nama: string; brand: { id: string; nama: string } | null }[]).map((r) => ({
+            (json.rekening as { id: string; nama: string; nomorRekening: string | null; brand: { id: string; nama: string } | null }[]).map((r) => ({
               id: r.id,
               nama: r.nama,
+              nomorRekening: r.nomorRekening,
               brandId: r.brand?.id ?? null,
               brandNama: r.brand?.nama ?? null,
             }))
@@ -713,7 +714,7 @@ export default function LaporanPage() {
               setRekeningId(v);
               if (v) setBrandId(null);
             }}
-            options={daftarRekening.map((r) => ({ value: r.id, label: r.nama }))}
+            options={daftarRekening.map((r) => ({ value: r.id, label: labelRekening(r.nama, r.nomorRekening) }))}
             placeholder="Semua rekening"
             emptyText="Belum ada rekening"
           />

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { buildRekapWorkbook, type BarisRekapExcel } from "@/lib/excel";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { batasiTransaksi, bolehRekening } from "@/lib/akses";
-import { formatAngka, tanggalKeIso } from "@/lib/utils";
+import { formatAngka, labelRekening, tanggalKeIso } from "@/lib/utils";
 
 export async function GET(req: Request) {
   const auth = await wajibLogin(bolehLihatLaporan);
@@ -85,7 +85,7 @@ export async function GET(req: Request) {
       });
     });
 
-    const namaRekening = rekening?.nama ?? "Semua Rekening";
+    const namaRekening = rekening ? labelRekening(rekening.nama, rekening.nomorRekening) : "Semua Rekening";
     const buf = await buildRekapWorkbook(rows, {
       namaRekening,
       saldoAwal:

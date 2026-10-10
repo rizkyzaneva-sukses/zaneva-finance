@@ -5,20 +5,20 @@
  * TANGGAL SALDO AWAL, URUTAN.
  *
  * Aturan:
- *   - NAMA  wajib, unik (kalau sudah ada → baris dianggap "ubah", bukan gagal).
+ *   - NAMA  wajib. Boleh sama dengan rekening lain.
  *   - BANK  wajib, salah satu: BCA / MANDIRI / BRI / BNI / PETTY CASH / LAINNYA.
+ *   - NO REKENING unik. Kalau sudah ada → baris dianggap "ubah". Kosong boleh,
+ *     dan dicocokkan lewat nama hanya kalau tepat satu rekening tanpa nomor memakai nama itu.
  *   - BRAND opsional; kalau diisi harus brand yang sudah ada (dibuat lewat Stok & HPP).
  *   - SALDO AWAL & URUTAN opsional (default 0).
  *   - TANGGAL SALDO AWAL opsional (default hari ini WIB).
- *
- * Baris yang namanya sudah ada tapi isinya berbeda → status "ubah" (rekening
- * di-update, saldo berjalan dihitung ulang). Isi sama persis → dilewati.
  */
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { Bank } from "@/generated/prisma/enums";
 import { kunciBrand } from "@/lib/produk";
 import { hariIniWib } from "@/lib/alokasi";
+import { normNomorRekening } from "@/lib/utils";
 
 export const MAKS_UKURAN_EXCEL_REKENING = 5 * 1024 * 1024;
 
@@ -98,6 +98,8 @@ export interface PerubahanRekening {
   brand: string | null;
   brandKunci: string | null;
   nomorRekening: string | null;
+  /** Rekening yang sudah ada dan akan diubah. Kosong kalau status "baru". */
+  id: string | null;
   saldoAwal: number;
   tanggalSaldoAwal: string;
   urutan: number;
@@ -169,7 +171,12 @@ export async function analisaRekening(buffer: ArrayBuffer): Promise<AnalisaReken
     prisma.rekening.findMany({ select: { id: true, nama: true, bank: true, nomorRekening: true, saldoAwal: true, tanggalSaldoAwal: true, urutan: true, brandId: true } }),
     prisma.brand.findMany({ select: { id: true, nama: true, kunci: true } }),
   ]);
-  const lamaPerNama = new Map(rekeningLama.map((r) => [r.nama.toLowerCase(), r]));
+  const lamaPerNomor = new Map<string, (typeof rekeningLama)[number]>();
+  for (const r of rekeningLama) {
+    const n = normNomorRekening(r.nomorRekening);
+    if (n) lamaPerNomor.set(n, r);
+  }
+  const tanpaNomor = rekeningLama.filter((r) => !normNomorRekening(r.nomorRekening));
   const brandKunciSet = new Map(brands.map((b) => [kunciBrand(b.nama), b]));
 
   const baru: PerubahanRekening[] = [];
@@ -177,7 +184,8 @@ export async function analisaRekening(buffer: ArrayBuffer): Promise<AnalisaReken
   const gagal: GagalRekening[] = [];
   let jumlahSama = 0;
   let jumlahBaris = 0;
-  const namaTerpakai = new Set<string>();
+  const nomorTerpakai = new Set<string>();
+  const idTerpakai = new Set<string>();
 
   const ambil = (row: ExcelJS.Row, col: number) => (col > 0 ? row.getCell(col).value : null);
 
@@ -193,12 +201,6 @@ export async function analisaRekening(buffer: ArrayBuffer): Promise<AnalisaReken
       gagal.push({ baris: nomorBaris, nama: "", alasan: "NAMA kosong" });
       return;
     }
-    const kunci = nama.toLowerCase();
-    if (namaTerpakai.has(kunci)) {
-      gagal.push({ baris: nomorBaris, nama, alasan: "Nama duplikat di dalam file" });
-      return;
-    }
-
     const bank = parseBank(bankRaw);
     if (!bank) {
       gagal.push({ baris: nomorBaris, nama, alasan: `BANK "${bankRaw}" tidak dikenal (pakai BCA/MANDIRI/BRI/BNI/PETTY CASH/LAINNYA)` });
@@ -220,35 +222,85 @@ export async function analisaRekening(buffer: ArrayBuffer): Promise<AnalisaReken
       brandKunci = hit.kunci;
     }
 
-    const nomorRekening = teks(ambil(row, kolom.nomor)) || null;
+    const nomorMentah = teks(ambil(row, kolom.nomor));
+    const nomorRekening = normNomorRekening(nomorMentah);
+    if (nomorRekening && nomorRekening.length > 32) {
+      gagal.push({ baris: nomorBaris, nama, alasan: "Nomor rekening lebih dari 32 karakter" });
+      return;
+    }
+    if (nomorRekening && nomorTerpakai.has(nomorRekening)) {
+      gagal.push({ baris: nomorBaris, nama, alasan: `Nomor rekening ${nomorRekening} muncul lebih dari sekali di file` });
+      return;
+    }
     const saldoAwal = angka(ambil(row, kolom.saldo)) ?? 0;
     const tgl = tanggal(ambil(row, kolom.tanggal)) ?? hariIniWib();
     const urutan = Math.trunc(angka(ambil(row, kolom.urutan)) ?? 0);
 
-    const lama = lamaPerNama.get(kunci);
+    let lama = nomorRekening ? lamaPerNomor.get(nomorRekening) : undefined;
+    if (!nomorRekening) {
+      const kandidat = tanpaNomor.filter(
+        (r) => r.nama.toLowerCase() === nama.toLowerCase() && !idTerpakai.has(r.id)
+      );
+      if (kandidat.length > 1) {
+        gagal.push({
+          baris: nomorBaris,
+          nama,
+          alasan: "Ada lebih dari satu rekening dengan nama ini tanpa nomor. Isi nomor rekening supaya bisa dibedakan.",
+        });
+        return;
+      }
+      lama = kandidat[0];
+    }
+
+    if (nomorRekening) nomorTerpakai.add(nomorRekening);
+
     if (!lama) {
-      namaTerpakai.add(kunci);
-      baru.push({ status: "baru", baris: nomorBaris, nama, bank, brand, brandKunci, nomorRekening, saldoAwal, tanggalSaldoAwal: tgl, urutan, diubah: [] });
+      baru.push({
+        status: "baru",
+        baris: nomorBaris,
+        nama,
+        bank,
+        brand,
+        brandKunci,
+        nomorRekening,
+        id: null,
+        saldoAwal,
+        tanggalSaldoAwal: tgl,
+        urutan,
+        diubah: [],
+      });
       return;
     }
 
-    // Bandingkan dengan data tersimpan
     const diubah: string[] = [];
+    if (lama.nama !== nama) diubah.push("nama");
     if (lama.bank !== bank) diubah.push("bank");
-    if ((lama.nomorRekening ?? "") !== (nomorRekening ?? "")) diubah.push("nomorRekening");
+    if (normNomorRekening(lama.nomorRekening) !== nomorRekening) diubah.push("nomorRekening");
     if (Number(lama.saldoAwal) !== saldoAwal) diubah.push("saldoAwal");
     if (fmtTanggal(lama.tanggalSaldoAwal) !== tgl) diubah.push("tanggalSaldoAwal");
     if (lama.urutan !== urutan) diubah.push("urutan");
     const brandLama = lama.brandId ? brands.find((b) => b.id === lama.brandId) : null;
     if ((brandLama?.kunci ?? null) !== brandKunci) diubah.push("brand");
 
+    idTerpakai.add(lama.id);
     if (diubah.length === 0) {
       jumlahSama++;
-      namaTerpakai.add(kunci);
       return;
     }
-    namaTerpakai.add(kunci);
-    ubah.push({ status: "ubah", baris: nomorBaris, nama, bank, brand, brandKunci, nomorRekening, saldoAwal, tanggalSaldoAwal: tgl, urutan, diubah });
+    ubah.push({
+      status: "ubah",
+      baris: nomorBaris,
+      nama,
+      bank,
+      brand,
+      brandKunci,
+      nomorRekening,
+      id: lama.id,
+      saldoAwal,
+      tanggalSaldoAwal: tgl,
+      urutan,
+      diubah,
+    });
   });
 
   return { ok: true, hasil: { namaSheet: ws.name, jumlahBaris, baru, ubah, gagal, jumlahSama } };

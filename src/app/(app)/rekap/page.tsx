@@ -29,7 +29,7 @@ import {
 import { SearchableSelect, type SelectOption } from "@/components/ui/searchable-select";
 import { SplitEditor, type RincianForm } from "@/components/split-editor";
 import { usePasteImages } from "@/hooks/use-paste-images";
-import { cn, formatAngka, formatTanggal } from "@/lib/utils";
+import { cn, formatAngka, formatTanggal, labelRekening } from "@/lib/utils";
 
 interface BarisParsing {
   tanggalTeks: string;
@@ -70,6 +70,7 @@ interface Rekening {
   id: string;
   nama: string;
   bank: string;
+  nomorRekening?: string | null;
   aktif: boolean;
 }
 
@@ -123,7 +124,7 @@ export default function RekapPage() {
 
   const opsiRekening: SelectOption[] = rekening.map((r) => ({
     value: r.id,
-    label: r.nama,
+    label: labelRekening(r.nama, r.nomorRekening),
     hint: r.bank,
   }));
 

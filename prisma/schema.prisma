@@ -126,9 +126,11 @@ model UserBrand {
 
 model Rekening {
   id            String  @id @default(cuid())
-  nama          String  @unique
+  /// Boleh sama. Dua rekening dibedakan dari nomornya, bukan dari namanya.
+  nama          String
   bank          Bank
-  nomorRekening String?
+  /// Unik kalau diisi. Kosong boleh lebih dari satu (kas tanpa nomor).
+  nomorRekening String? @unique
 
   /// Titik nol pembukuan rekening ini — baris pertama rekap (kode 0000 Saldo).
   saldoAwal        Decimal  @default(0) @db.Decimal(18, 2)

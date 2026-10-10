@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, Bank } from "@/generated/prisma/enums";
 import { hitungUlangSaldo } from "@/lib/rekap";
 import { bolehBrand, bolehRekening } from "@/lib/akses";
+import { normNomorRekening } from "@/lib/utils";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -29,7 +30,22 @@ export async function PATCH(req: Request, { params }: Params) {
 
     if (typeof body.nama === "string" && body.nama.trim()) data.nama = body.nama.trim();
     if (Object.values(Bank).includes(body.bank)) data.bank = body.bank;
-    if (typeof body.nomorRekening === "string") data.nomorRekening = body.nomorRekening.trim() || null;
+    if (typeof body.nomorRekening === "string") {
+      const nomor = normNomorRekening(body.nomorRekening);
+      if (nomor && nomor.length > 32) {
+        return NextResponse.json({ error: "Nomor rekening maksimal 32 karakter" }, { status: 400 });
+      }
+      if (nomor && nomor !== lama.nomorRekening) {
+        const bentrok = await prisma.rekening.findUnique({ where: { nomorRekening: nomor } });
+        if (bentrok && bentrok.id !== id) {
+          return NextResponse.json(
+            { error: `Nomor rekening ${nomor} sudah dipakai oleh "${bentrok.nama}"` },
+            { status: 409 }
+          );
+        }
+      }
+      data.nomorRekening = nomor;
+    }
     if (typeof body.aktif === "boolean") data.aktif = body.aktif;
     if (body.urutan !== undefined) data.urutan = Number(body.urutan) || 0;
     if (body.brandId !== undefined) {
@@ -62,6 +78,9 @@ export async function PATCH(req: Request, { params }: Params) {
 
     return NextResponse.json({ rekening, saldoDihitungUlang: saldoAwalBerubah });
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "Nomor rekening itu sudah dipakai" }, { status: 409 });
+    }
     return apiError(err);
   }
 }

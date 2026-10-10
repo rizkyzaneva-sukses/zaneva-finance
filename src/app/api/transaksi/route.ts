@@ -32,7 +32,7 @@ export async function GET(req: Request) {
         skip: (halaman - 1) * perHalaman,
         take: perHalaman,
         include: {
-          rekening: { select: { id: true, nama: true } },
+          rekening: { select: { id: true, nama: true, nomorRekening: true } },
           kodeAkun: { select: { id: true, kode: true, nama: true } },
           rincian: {
             orderBy: { urutan: "asc" },

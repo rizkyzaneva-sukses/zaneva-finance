@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hitungPersediaan, type RingkasPersediaan } from "@/lib/persediaan";
 import type { AktivitasKas, Kelompok, Laporan } from "@/generated/prisma/enums";
+import { labelRekening } from "@/lib/utils";
 
 /**
  * Laporan keuangan basis kas, diturunkan dari mutasi bank + kode akun.
@@ -296,7 +297,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
     prisma.rekening.findMany({
       where: rekeningIds ? { id: { in: rekeningIds } } : undefined,
       orderBy: [{ urutan: "asc" }, { nama: "asc" }],
-      select: { id: true, nama: true, saldoAwal: true, bank: true },
+      select: { id: true, nama: true, nomorRekening: true, saldoAwal: true, bank: true },
     }),
     kasTersimpan(sampai, rekeningIds),
     // Transaksi menunggu ACC TETAP dihitung di laporan: uangnya sudah berpindah
@@ -372,7 +373,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
   }
   const kas = rekeningList.map((r) => ({
     rekeningId: r.id,
-    nama: r.nama,
+    nama: labelRekening(r.nama, r.nomorRekening),
     // Petty cash dipisah sebagai kelompok sendiri di Neraca, tapi tetap kas.
     jenis: r.bank === "PETTY_CASH" ? ("PETTY_CASH" as const) : ("BANK" as const),
     saldo: rp(sen(r.saldoAwal) + (netPerRekening.get(r.id) ?? 0)),
@@ -470,7 +471,7 @@ export async function hitungLaporan({ dari, sampai, rekeningId, brandId = null, 
 
   return {
     periode: { dari, sampai },
-    rekening: rekeningList.map((r) => ({ id: r.id, nama: r.nama })),
+    rekening: rekeningList.map((r) => ({ id: r.id, nama: labelRekening(r.nama, r.nomorRekening) })),
     jumlahTransaksiPeriode: dalamPeriodeKas.length,
     adaPenyesuaian: entriJurnal.some((e) => e.tanggal >= dari && e.tanggal <= sampai),
     menungguAcc,
