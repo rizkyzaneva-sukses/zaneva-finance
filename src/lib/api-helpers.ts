@@ -10,10 +10,22 @@ export function forbidden(pesan = "Akses ditolak untuk role kamu") {
   return NextResponse.json({ error: pesan, type: "forbidden" }, { status: 403 });
 }
 
+/** Pesan yang aman ditampilkan. Detail Prisma, env, dan respons layanan luar tidak boleh ikut. */
+export function pesanUntukKlien(error: unknown): string {
+  const mentah = error instanceof Error ? error.message : "";
+  const bocor =
+    !mentah ||
+    mentah.length > 240 ||
+    mentah.includes("\n") ||
+    /prisma|DATABASE_URL|SESSION_SECRET|OPENROUTER_API_KEY|node_modules|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|postgres(?:ql)?:\/\/|password authentication|^\s*at\s+|\(\S+:\d+:\d+\)|bearer\s+/i.test(
+      mentah
+    );
+  return bocor ? "Terjadi kesalahan di server" : mentah;
+}
+
 export function apiError(error: unknown) {
   console.error("[api]", error);
-  const pesan = error instanceof Error ? error.message : "Terjadi kesalahan di server";
-  return NextResponse.json({ error: pesan, type: "server_error" }, { status: 500 });
+  return NextResponse.json({ error: pesanUntukKlien(error), type: "server_error" }, { status: 500 });
 }
 
 type HasilAuth = { ok: true; user: PenggunaAktif } | { ok: false; response: NextResponse };

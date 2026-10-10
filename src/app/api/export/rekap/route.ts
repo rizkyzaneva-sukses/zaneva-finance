@@ -4,7 +4,7 @@ import { bolehLihatLaporan } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { buildRekapWorkbook, type BarisRekapExcel } from "@/lib/excel";
 import { filterDariQuery } from "@/lib/filter-transaksi";
-import { batasiTransaksi } from "@/lib/akses";
+import { batasiTransaksi, bolehRekening } from "@/lib/akses";
 import { formatAngka, tanggalKeIso } from "@/lib/utils";
 
 export async function GET(req: Request) {
@@ -13,6 +13,10 @@ export async function GET(req: Request) {
 
   try {
     const sp = new URL(req.url).searchParams;
+    const rekeningId = sp.get("rekeningId");
+    if (rekeningId && !bolehRekening(auth.user, rekeningId)) {
+      return NextResponse.json({ error: "Rekening ini di luar brand yang ditugaskan ke kamu" }, { status: 403 });
+    }
     const where = batasiTransaksi(filterDariQuery(sp), auth.user);
 
     const transaksi = await prisma.transaksi.findMany({
@@ -32,7 +36,6 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Tidak ada transaksi untuk diexport" }, { status: 400 });
     }
 
-    const rekeningId = sp.get("rekeningId");
     const rekening = rekeningId
       ? await prisma.rekening.findUnique({ where: { id: rekeningId } })
       : null;

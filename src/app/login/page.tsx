@@ -35,7 +35,12 @@ function LoginForm() {
       // return_to datang dari URL, jadi tidak boleh dipercaya begitu saja: hanya jalur
       // internal yang diterima. "//evil.com" dan "https://..." akan mengalihkan keluar situs.
       const tujuan = params.get("return_to") ?? "";
-      const aman = tujuan.startsWith("/") && !tujuan.startsWith("//") && !tujuan.startsWith("/\\");
+      const aman =
+        tujuan.startsWith("/") &&
+        !tujuan.startsWith("//") &&
+        !tujuan.includes("\\") &&
+        !tujuan.includes("://") &&
+        !/[\u0000-\u001F]/.test(tujuan);
       router.push(aman ? tujuan : "/dashboard");
       router.refresh();
     } catch {
@@ -61,7 +66,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form method="post" action="/login" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label
               htmlFor="username"

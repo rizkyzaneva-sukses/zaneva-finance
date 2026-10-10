@@ -90,6 +90,8 @@ model User {
   nama         String
   username     String   @unique
   passwordHash String
+  /// Naik setiap password diganti. Sesi yang menyimpan angka lama langsung batal.
+  tokenSesi    Int      @default(0)
   role         Role     @default(STAFF)
   aktif        Boolean  @default(true)
   createdAt    DateTime @default(now())

@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 
 export interface SessionData {
   userId?: string;
+  /** Salinan `User.tokenSesi` saat login. Tidak cocok = sesi dibatalkan. */
+  tokenSesi?: number;
 }
 
 /**

@@ -42,14 +42,14 @@ export async function POST(req: Request) {
     const role = String(body.role ?? "") as Role;
 
     if (!nama) return NextResponse.json({ error: "Nama wajib diisi" }, { status: 400 });
-    if (!/^[a-z0-9._-]{3,}$/.test(username)) {
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
       return NextResponse.json(
-        { error: "Username minimal 3 karakter, hanya huruf kecil, angka, titik, strip" },
+        { error: "Username 3–32 karakter: huruf kecil, angka, titik, atau strip" },
         { status: 400 }
       );
     }
-    if (password.length < 8) {
-      return NextResponse.json({ error: "Password minimal 8 karakter" }, { status: 400 });
+    if (password.length < 8 || password.length > 128) {
+      return NextResponse.json({ error: "Password 8–128 karakter" }, { status: 400 });
     }
     if (!Object.values(Role).includes(role)) {
       return NextResponse.json({ error: "Role tidak valid" }, { status: 400 });

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DialogGantiPassword, TombolGantiPassword } from "@/components/ganti-password";
 import type { Role } from "@/generated/prisma/enums";
 
 type Grup = "operasional" | "tutup" | "master" | "administrasi";
@@ -192,6 +193,7 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
   const pathname = usePathname();
   const router = useRouter();
   const [terbuka, setTerbuka] = React.useState(false);
+  const [gantiPassword, setGantiPassword] = React.useState(false);
   const tombolMenu = React.useRef<HTMLButtonElement>(null);
   const panelRef = React.useRef<HTMLDivElement>(null);
 
@@ -321,6 +323,7 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
               </div>
             </div>
             <ThemeToggle />
+            <TombolGantiPassword varian="ikon" onClick={() => setGantiPassword(true)} />
             <button
               type="button"
               onClick={handleLogout}
@@ -336,6 +339,11 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8" inert={terbuka}>
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
+        <DialogGantiPassword
+          buka={gantiPassword}
+          username={user.username}
+          onTutup={() => setGantiPassword(false)}
+        />
       </div>
 
       <div className="lg:hidden">
@@ -366,6 +374,13 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
             <p className="mt-0.5 text-[10px] font-semibold tracking-[0.14em] text-slate-600 uppercase dark:text-zinc-400">
               {user.role}
             </p>
+            <TombolGantiPassword
+              varian="teks"
+              onClick={() => {
+                setTerbuka(false);
+                setGantiPassword(true);
+              }}
+            />
           </div>
           <DaftarMenu id="menu-aplikasi" item={menuTampil} pathname={pathname} />
         </div>

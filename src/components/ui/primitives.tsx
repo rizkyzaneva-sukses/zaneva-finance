@@ -9,18 +9,20 @@ export const INPUT_CLASS =
 
 export function Field({
   label,
+  htmlFor,
   required,
   hint,
   children,
 }: {
   label: string;
+  htmlFor?: string;
   required?: boolean;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {label}
         {required && <span className="ml-0.5 text-red-600 dark:text-red-400">*</span>}
       </label>

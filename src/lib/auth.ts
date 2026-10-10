@@ -23,9 +23,11 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
 
   const user = await prisma.user.findUnique({
     where: { id: session.userId },
-    select: { id: true, nama: true, username: true, role: true, aktif: true },
+    select: { id: true, nama: true, username: true, role: true, aktif: true, tokenSesi: true },
   });
   if (!user || !user.aktif) return null;
+  // Cookie tanpa angka ini dibuat sebelum kolom ada — anggap 0 supaya sesi yang sah tidak putus.
+  if ((session.tokenSesi ?? 0) !== user.tokenSesi) return null;
 
   // Pembatasan brand: OWNER selalu penuh. Pengguna lain tanpa penugasan = semua brand
   // (sama seperti sebelum fitur ini ada); dengan penugasan = hanya brand-brand itu.

@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehKelolaPengguna } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 import { Prisma } from "@/generated/prisma/client";
 import { AksiAudit, Role } from "@/generated/prisma/enums";
 
@@ -23,11 +24,13 @@ export async function PATCH(req: Request, { params }: Params) {
     if (typeof body.nama === "string" && body.nama.trim()) data.nama = body.nama.trim();
     if (Object.values(Role).includes(body.role)) data.role = body.role;
     if (typeof body.aktif === "boolean") data.aktif = body.aktif;
-    if (typeof body.password === "string" && body.password) {
-      if (body.password.length < 8) {
-        return NextResponse.json({ error: "Password minimal 8 karakter" }, { status: 400 });
+    const gantiPassword = typeof body.password === "string" && body.password.length > 0;
+    if (gantiPassword) {
+      if (body.password.length < 8 || body.password.length > 128) {
+        return NextResponse.json({ error: "Password 8–128 karakter" }, { status: 400 });
       }
       data.passwordHash = await bcrypt.hash(body.password, 10);
+      data.tokenSesi = { increment: 1 };
     }
 
     // Jangan sampai OWNER terakhir kehilangan aksesnya dan app jadi tak terkelola.
@@ -60,7 +63,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const hasil = await tx.user.update({
         where: { id },
         data,
-        select: { id: true, nama: true, username: true, role: true, aktif: true },
+        select: { id: true, nama: true, username: true, role: true, aktif: true, tokenSesi: true },
       });
       if (brandBaru) {
         await tx.userBrand.deleteMany({ where: { userId: id } });
@@ -84,7 +87,17 @@ export async function PATCH(req: Request, { params }: Params) {
       return hasil;
     });
 
-    return NextResponse.json({ user });
+    // Yang mengganti password sendiri tetap masuk. Sesi orang lain dengan password lama batal.
+    if (gantiPassword && id === auth.user.id) {
+      const session = await getSession();
+      session.userId = id;
+      session.tokenSesi = user.tokenSesi;
+      await session.save();
+    }
+
+    const { tokenSesi: _token, ...publik } = user;
+    void _token;
+    return NextResponse.json({ user: publik });
   } catch (err) {
     return apiError(err);
   }

@@ -98,11 +98,15 @@ async function panggilOpenRouter(
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`OpenRouter error (${res.status}): ${body.slice(0, 300)}`);
+    console.error("[openrouter]", res.status, body.slice(0, 500));
+    throw new Error("Layanan pembacaan mutasi sedang gagal. Coba lagi sebentar.");
   }
 
   const json = (await res.json()) as OpenRouterResponse;
-  if (json.error) throw new Error(`OpenRouter error: ${json.error.message ?? "unknown"}`);
+  if (json.error) {
+    console.error("[openrouter]", json.error.message ?? "unknown");
+    throw new Error("Layanan pembacaan mutasi sedang gagal. Coba lagi sebentar.");
+  }
 
   const content = json.choices?.[0]?.message?.content;
   if (!content) throw new Error("OpenRouter tidak mengembalikan konten");
