@@ -49,10 +49,10 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
  * Matriks izin. "Finance" = ADMIN.
  *
  *                              OWNER  ADMIN  STAFF  BENDAHARA
- *  Rekap (upload mutasi bank)    ✓      ✓      ✓       —
- *  Koreksi / input manual        ✓      ✓      ✓*      ✓*      (* butuh ACC)
- *  ACC tahap 1 (verifikasi)      ✓      ✓      —       ✓
- *  ACC final (finance)           ✓      ✓      —       —
+ *  Rekap (upload mutasi bank)    ✓      ✓      ✓*      —       (* bank menunggu ACC Finance)
+ *  Koreksi / input manual        ✓      ✓      ✓*      ✓*      (* bank & koreksi kode menunggu Finance;
+ *                                                              input petty cash langsung masuk)
+ *  ACC mutasi bank (Finance)     ✓      ✓      —       —
  *  Hapus transaksi, master data  ✓      ✓      —       —
  *  Dashboard & Laporan           ✓      ✓      ✓       —
  *  Kelola pengguna, lihat Log    ✓      —      —       —
@@ -74,23 +74,26 @@ export function butuhAcc(role: Role): boolean {
 }
 
 /**
- * Status ACC awal saat sebuah transaksi dibuat/diubah.
+ * Status ACC awal untuk stok opname.
  *
- * - ADMIN/OWNER (Finance): langsung DISETUJUI — menginput berarti memutuskan.
- * - BENDAHARA/STAFF: MENUNGGU verifikasi Bendahara.
+ * - ADMIN/OWNER: langsung DISETUJUI.
+ * - STAFF/BENDAHARA: MENUNGGU. Di halaman Stok ini disahkan Finance, bukan Bendahara.
  *
- * Pengecualian petty cash & koreksi kode/catatan/split diatur di lib/acc.ts.
+ * Transaksi bank tidak memakai fungsi ini. Aturannya ada di lib/acc.ts.
  */
 export function statusAccUntuk(role: Role): StatusAcc {
   return butuhAcc(role) ? StatusAcc.MENUNGGU : StatusAcc.DISETUJUI;
 }
 
-/** ACC tahap 1: verifikasi pekerjaan STAFF/STAF oleh BENDAHARA (atau Finance langsung). */
+/**
+ * Menyetujui sisa status MENUNGGU (data lama, sebelum antrean bank pindah ke Finance).
+ * Mutasi bank yang baru tidak lagi masuk status ini.
+ */
 export function bolehAccBendahara(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER || role === Role.BENDAHARA;
 }
 
-/** ACC final (Finance): menyelesaikan koreksi kode/catatan/split. ADMIN = Finance. */
+/** ACC mutasi bank dan koreksi yang menunggu Finance. ADMIN = Finance. */
 export function bolehAccFinance(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER;
 }
@@ -100,7 +103,7 @@ export function bolehVerifikasiPenjualan(role: Role): boolean {
   return role === Role.STAFF || role === Role.ADMIN || role === Role.OWNER;
 }
 
-/** Boleh mengesahkan pekerjaan STAFF/BENDAHARA (tahap mana pun). */
+/** Boleh mengesahkan sisa status MENUNGGU. ACC mutasi bank memakai bolehAccFinance. */
 export function bolehAcc(role: Role): boolean {
   return bolehAccBendahara(role);
 }

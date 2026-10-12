@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehRekap, statusAccUntuk } from "@/lib/auth";
+import { bolehRekap, butuhAcc } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { StatusKode, Sumber } from "@/generated/prisma/enums";
+import { StatusAcc, StatusKode, Sumber } from "@/generated/prisma/enums";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { validasiRincian, type RincianBersih, type RincianMasuk } from "@/lib/split";
 import { bolehRekening } from "@/lib/akses";
@@ -173,8 +173,9 @@ export async function POST(req: Request) {
           yakin: b.yakin !== false,
           // Duplikat yang sengaja dipaksa masuk butuh hash unik agar lolos constraint
           dedupeHash: hashFinal,
-          // STAFF menyimpan rekap → menunggu ACC; ADMIN/OWNER → langsung final.
-          statusAcc: statusAccUntuk(auth.user.role),
+          // STAFF menyimpan rekap bank → menunggu ACC Finance. ADMIN/OWNER langsung final.
+          // Bendahara tidak meng-ACC mutasi bank, dan tidak memakai endpoint ini.
+          statusAcc: butuhAcc(auth.user.role) ? StatusAcc.PERLU_FINANCE : StatusAcc.DISETUJUI,
           createdById: auth.user.id,
         });
 

@@ -107,8 +107,8 @@ function TransaksiIsi() {
   const [formManual, setFormManual] = React.useState<FormManual | null>(null);
   const [menyimpanManual, setMenyimpanManual] = React.useState(false);
 
-  // ACC berjenjang: Bendahara memverifikasi input staff (MENUNGGU);
-  // Finance (ADMIN/OWNER) memfinalkan koreksi kode/catatan/split (PERLU_FINANCE).
+  // Rekening bank dari STAFF menunggu Finance (PERLU_FINANCE).
+  // MENUNGGU hanya sisa data lama; Bendahara tidak meng-ACC mutasi bank.
   const bisaAccBendahara = role === "ADMIN" || role === "OWNER" || role === "BENDAHARA";
   const bisaAccFinance = role === "ADMIN" || role === "OWNER";
   const bolehHapus = role === "ADMIN" || role === "OWNER";
@@ -312,9 +312,11 @@ function TransaksiIsi() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       toast.success(
-        data.transaksi.statusAcc === "MENUNGGU"
-          ? "Transaksi tersimpan, menunggu ACC Bendahara"
-          : "Transaksi tersimpan"
+        data.transaksi.statusAcc === "PERLU_FINANCE"
+          ? "Transaksi tersimpan, menunggu ACC Finance"
+          : data.transaksi.statusAcc === "MENUNGGU"
+            ? "Transaksi tersimpan, menunggu ACC Bendahara"
+            : "Transaksi tersimpan"
       );
       setFormManual(null);
       muat();
@@ -643,7 +645,7 @@ function TransaksiIsi() {
                         {t.statusAcc === "PERLU_FINANCE" && (
                           <div
                             className="mt-1"
-                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, sudah diverifikasi Bendahara — menunggu finalisasi Finance`}
+                            title={`Dibuat/diubah oleh ${t.updatedBy?.nama ?? t.createdBy?.nama ?? "-"}, menunggu ACC Finance`}
                           >
                             <Badge warna="kuning">
                               <Clock className="mr-1 inline h-3 w-3" />
@@ -850,7 +852,7 @@ function TransaksiIsi() {
         judul="Tambah Transaksi Manual"
         deskripsi={
           role === "STAFF" || role === "BENDAHARA"
-            ? "Transaksi ke rekening bank akan berstatus Menunggu ACC Bendahara. Input ke petty cash langsung masuk tanpa ACC."
+            ? "Transaksi ke rekening bank menunggu ACC Finance. Input ke petty cash langsung masuk tanpa ACC."
             : "Untuk transaksi yang tidak ada di mutasi bank, mis. kas tunai atau penyesuaian."
         }
         onTutup={() => setFormManual(null)}

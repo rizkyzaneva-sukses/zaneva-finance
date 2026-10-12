@@ -30,9 +30,9 @@ interface Pengguna {
 
 const OPSI_ROLE = [
   { value: "OWNER", label: "OWNER", hint: "Akses penuh, kelola pengguna, lihat Log" },
-  { value: "ADMIN", label: "ADMIN (Finance)", hint: "Semua kecuali kelola pengguna; ACC final koreksi kode/catatan/split" },
-  { value: "BENDAHARA", label: "BENDAHARA", hint: "Input petty cash (langsung masuk) & verifikasi koreksi staff (ACC tahap 1)" },
-  { value: "STAFF", label: "STAFF", hint: "Rekap & koreksi (menunggu ACC Bendahara), tanpa hapus" },
+  { value: "ADMIN", label: "ADMIN (Finance)", hint: "Semua kecuali kelola pengguna; meng-ACC input dan koreksi rekening bank" },
+  { value: "BENDAHARA", label: "BENDAHARA", hint: "Input petty cash saja, langsung masuk. Tidak meng-ACC mutasi bank" },
+  { value: "STAFF", label: "STAFF", hint: "Rekap & koreksi rekening bank (menunggu ACC Finance), tanpa hapus" },
 ];
 
 interface FormState {

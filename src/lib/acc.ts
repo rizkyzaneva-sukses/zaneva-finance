@@ -3,15 +3,15 @@ import { Bank, Role, StatusAcc } from "@/generated/prisma/enums";
 import { butuhAcc, type PenggunaAktif } from "@/lib/auth";
 
 /*
- * Aturan ACC transaksi. "Finance" = ADMIN.
+ * Aturan ACC transaksi. "Finance" = ADMIN / OWNER.
+ * Bendahara tidak meng-ACC mutasi bank. Tugasnya hanya mencatat petty cash.
  *
- * 1. Input manual PETTY CASH oleh Bendahara/Staff → langsung DISETUJUI
- *    (kas kecil operasional, tidak perlu dikunci ACC).
- * 2. Input lain oleh Bendahara/Staff → MENUNGGU (verifikasi Bendahara).
- * 3. Koreksi APA PUN oleh Bendahara/Staff → MENUNGGU.
- *    - Bila menyentuh KODE AKUN, CATATAN, atau SPLIT → PERLU_FINANCE
- *      (Bendahara sudah beres, tapi butuh finalisasi Finance).
- * 4. ADMIN/OWNER (Finance) mengubah → DISETUJUI; mengubah berarti memutuskan.
+ * 1. Input petty cash oleh Bendahara/Staff → langsung DISETUJUI.
+ * 2. Input rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
+ * 3. Koreksi rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
+ *    Koreksi petty cash yang menyentuh kode akun, catatan, atau split
+ *    juga PERLU_FINANCE. Koreksi ringan petty cash tetap DISETUJUI.
+ * 4. ADMIN/OWNER mengubah → DISETUJUI; mengubah berarti memutuskan.
  */
 
 /** Field ACC (skalar) yang ditulis bersama transaksi. */
@@ -28,14 +28,15 @@ export function inputPettyCashTanpaAcc(bank: Bank): boolean {
 
 /**
  * Field ACC untuk transaksi BARU.
- * Petty cash oleh Bendahara/Staff langsung disetujui; selebihnya mengikuti role.
+ * Petty cash oleh Bendahara/Staff langsung disetujui.
+ * Rekening bank oleh Bendahara/Staff menunggu Finance, bukan Bendahara.
  */
 export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, bank: Bank): FieldAcc {
   if (butuhAcc(user.role) && inputPettyCashTanpaAcc(bank)) {
     return { statusAcc: StatusAcc.DISETUJUI, accOlehId: user.id, accPada: new Date() };
   }
   if (butuhAcc(user.role)) {
-    return { statusAcc: StatusAcc.MENUNGGU, accOlehId: null, accPada: null };
+    return { statusAcc: StatusAcc.PERLU_FINANCE, accOlehId: null, accPada: null };
   }
   return { statusAcc: StatusAcc.DISETUJUI, accOlehId: user.id, accPada: new Date() };
 }
@@ -44,25 +45,27 @@ export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, ban
  * Field ACC yang harus ikut ditulis setiap kali transaksi DIKOREKSI.
  *
  * - ADMIN/OWNER mengubah → langsung DISETUJUI atas nama dirinya.
- * - Bendahara/Staff mengubah → jejak ACC lama dihapus & disahkan ulang:
- *     · menyentuh kode akun / catatan / split → PERLU_FINANCE (final Finance)
- *     · koreksi biasa (mis. `yakin`)          → MENUNGGU (verifikasi Bendahara)
+ * - Bendahara/Staff mengubah rekening bank → PERLU_FINANCE.
+ * - Bendahara/Staff mengubah petty cash:
+ *     · menyentuh kode akun / catatan / split → PERLU_FINANCE
+ *     · koreksi ringan                         → tetap DISETUJUI
  */
 export function fieldAccUntukPerubahan(
   user: Pick<PenggunaAktif, "id" | "role">,
+  bank: Bank,
   sentuhPenting = false
 ): Prisma.TransaksiUpdateInput {
-  if (butuhAcc(user.role)) {
-    return {
-      statusAcc: sentuhPenting ? StatusAcc.PERLU_FINANCE : StatusAcc.MENUNGGU,
-      accOleh: { disconnect: true },
-      accPada: null,
-    };
-  }
-  return {
+  const setujui: Prisma.TransaksiUpdateInput = {
     statusAcc: StatusAcc.DISETUJUI,
     accOleh: { connect: { id: user.id } },
     accPada: new Date(),
+  };
+  if (!butuhAcc(user.role)) return setujui;
+  if (inputPettyCashTanpaAcc(bank) && !sentuhPenting) return setujui;
+  return {
+    statusAcc: StatusAcc.PERLU_FINANCE,
+    accOleh: { disconnect: true },
+    accPada: null,
   };
 }
 

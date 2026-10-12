@@ -293,7 +293,7 @@ export async function isiDummy() {
           role: Role.ADMIN,
         },
       });
-      // Bendahara demo: memegang petty cash & memverifikasi input staff (ACC tahap 1).
+      // Bendahara demo: mencatat petty cash. Tidak meng-ACC mutasi bank.
       await tx.user.create({
         data: {
           nama: `${MARK} Bendahara Demo`,
@@ -402,11 +402,10 @@ export async function isiDummy() {
           push(iso(b.yy, b.mm, 28), "611", "BIAYA ADM BANK", 0, 15_000);
           // Pengisian kas dari brand ke pusat (pindah dana)
           push(iso(b.yy, b.mm, 26), "10101", "TRSF KE OPERASIONAL PUSAT", 0, cfg.transfer);
-          // Beberapa baris menunggu ACC pada bulan terakhir (demo alur ACC)
+          // Beberapa baris menunggu ACC Finance pada bulan terakhir (demo alur ACC)
           if (idx === 2) {
-            push(iso(b.yy, b.mm, 20), "621", "BEBAN OPERASIONAL (INPUT STAFF)", 0, 350_000, { acc: StatusAcc.MENUNGGU });
-            push(iso(b.yy, b.mm, 21), "613", "ONGKOS EKSPEDISI (INPUT STAFF)", 0, 250_000, { acc: StatusAcc.MENUNGGU });
-            // Sudah diverifikasi Bendahara, menunggu finalisasi Finance (koreksi kode akun).
+            push(iso(b.yy, b.mm, 20), "621", "BEBAN OPERASIONAL (INPUT STAFF)", 0, 350_000, { acc: StatusAcc.PERLU_FINANCE });
+            push(iso(b.yy, b.mm, 21), "613", "ONGKOS EKSPEDISI (INPUT STAFF)", 0, 250_000, { acc: StatusAcc.PERLU_FINANCE });
             push(iso(b.yy, b.mm, 22), "605", "KOREKSI KODE OLEH STAFF — PERLU FINANCE", 0, 175_000, { acc: StatusAcc.PERLU_FINANCE });
           }
         });

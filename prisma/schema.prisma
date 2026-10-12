@@ -29,15 +29,15 @@ enum Bank {
 }
 
 enum StatusAcc {
-  /// Dibuat/diubah oleh ADMIN atau OWNER — langsung final, tidak perlu ACC.
+  /// Langsung final. Input/koreksi ADMIN atau OWNER, dan input petty cash.
   DISETUJUI
-  /// Dibuat/diubah oleh STAFF/BENDAHARA — menunggu verifikasi BENDAHARA dulu.
-  /// Transaksi tetap dihitung di laporan selama menunggu — uangnya sudah
-  /// benar-benar berpindah di bank, yang menunggu adalah pengesahan
-  /// pencatatannya, bukan keberadaan transaksinya.
+  /// Menunggu pengesahan. Dipakai stok opname yang diunggah STAFF/BENDAHARA
+  /// (disahkan Finance di halaman Stok). Transaksi bank baru tidak memakai
+  /// nilai ini. Transaksi yang menunggu tetap dihitung di laporan: uangnya
+  /// sudah berpindah, yang menunggu adalah pengesahan pencatatannya.
   MENUNGGU
-  /// Sudah diverifikasi BENDAHARA, tapi menyentuh kode akun / catatan / split —
-  /// harus difinalkan FINANCE (ADMIN/OWNER) sebelum dianggap sah.
+  /// Input atau koreksi rekening bank oleh STAFF/BENDAHARA. Disahkan Finance
+  /// (ADMIN/OWNER). Bendahara tidak meng-ACC mutasi bank.
   PERLU_FINANCE
 }
 
@@ -289,7 +289,7 @@ model Transaksi {
   accOleh   User?     @relation("TransaksiDiAcc", fields: [accOlehId], references: [id])
   accPada   DateTime?
 
-  /// Verifikasi penjualan kode 400. Kosong = belum dicek. Bukan ACC bendahara/finance.
+  /// Verifikasi penjualan kode 400. Kosong = belum dicek. Bukan ACC Finance.
   diverifikasiPada   DateTime?
   diverifikasiOlehId String?
   diverifikasiOleh   User?     @relation("TransaksiDiverifikasi", fields: [diverifikasiOlehId], references: [id], onDelete: SetNull)

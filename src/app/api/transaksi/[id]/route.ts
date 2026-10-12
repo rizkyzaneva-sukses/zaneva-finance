@@ -14,7 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 
 /**
  * Koreksi kode akun & catatan. Nominal/tanggal sengaja tidak bisa diubah di sini.
- * Perubahan oleh STAFF/BENDAHARA menandai transaksi "menunggu ACC".
+ * Perubahan rekening bank oleh STAFF/BENDAHARA menunggu ACC Finance.
  */
 export async function PATCH(req: Request, { params }: Params) {
   const auth = await wajibLogin();
@@ -39,12 +39,12 @@ export async function PATCH(req: Request, { params }: Params) {
     }
 
     const body = await req.json().catch(() => ({}));
-    // Koreksi kode akun / catatan dianggap menyentuh hal penting → wajib ACC finance.
-    // Koreksi biasa (mis. `yakin`) cukup diverifikasi bendahara.
+    // Kode akun / catatan pada petty cash tetap menunggu Finance.
+    // Rekening bank oleh STAFF/BENDAHARA selalu menunggu Finance, bukan Bendahara.
     const sentuhPenting = "kodeAkunId" in body || "catatan" in body;
     const data: Prisma.TransaksiUpdateInput = {
       updatedBy: { connect: { id: auth.user.id } },
-      ...fieldAccUntukPerubahan(auth.user, sentuhPenting),
+      ...fieldAccUntukPerubahan(auth.user, lama.rekening.bank, sentuhPenting),
     };
 
     if ("kodeAkunId" in body && lama._count.rincian > 0) {

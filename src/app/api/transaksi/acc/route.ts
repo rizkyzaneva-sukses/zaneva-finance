@@ -5,15 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { AksiAudit, StatusAcc } from "@/generated/prisma/enums";
 
 /**
- * Sahkan transaksi yang menunggu ACC — alur berjenjang.
+ * Sahkan transaksi yang menunggu ACC.
  *
- *   MENUNGGU       → DISETUJUI   (verifikasi BENDAHARA / Finance)
- *   PERLU_FINANCE  → DISETUJUI   (finalisasi FINANCE / ADMIN/OWNER)
+ *   PERLU_FINANCE  → DISETUJUI   (Finance / ADMIN/OWNER)
+ *   MENUNGGU       → DISETUJUI   (sisa data lama, sebelum antrean bank pindah ke Finance)
  *
+ * Input dan koreksi rekening bank yang baru tidak lagi masuk MENUNGGU.
  * Tidak mengubah isi transaksi — kalau isinya salah, cukup dibetulkan lewat
- * edit biasa, yang otomatis mengesahkan. Tahap ditentukan otomatis dari status
- * transaksi yang dipilih: yang MENUNGGU diverifikasi dulu, yang PERLU_FINANCE
- * difinalkan. Tidak ada transaksi campur status dalam satu klik dari UI.
+ * edit biasa, yang otomatis mengesahkan. Tidak ada transaksi campur status
+ * dalam satu klik dari UI.
  */
 export async function POST(req: Request) {
   const auth = await wajibLogin(bolehAccBendahara);
