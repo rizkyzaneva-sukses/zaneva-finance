@@ -180,7 +180,9 @@ export async function POST(req: Request) {
         });
 
         const kode = b.kodeAkunId ? kodeById.get(b.kodeAkunId) : undefined;
-        if (!rincian && kode && b.kodeAkunId) {
+        // Hanya pilihan yang benar-benar dikonfirmasi staff yang boleh menjadi
+        // contoh. Saran otomatis/AI yang langsung disimpan tidak ikut dipelajari.
+        if (!rincian && kode && b.kodeAkunId && b.statusKode === "DIKONFIRMASI") {
           untukDiingat.push({
             keterangan: b.keterangan,
             arah: b.uangMasuk > 0 ? "masuk" : "keluar",

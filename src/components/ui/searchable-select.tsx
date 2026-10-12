@@ -71,10 +71,19 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
         : [...props.value, value];
       props.onChange(next);
     } else {
-      props.onChange(value === props.value ? null : value);
+      // Memilih nilai yang sedang aktif tetap memanggil onChange. Pada preview
+      // transaksi ini dipakai staff untuk mengonfirmasi saran tanpa mengganti kode.
+      props.onChange(value);
       setOpen(false);
       setQuery("");
     }
+  }
+
+  function handleClear() {
+    if (props.multiple) return;
+    props.onChange(null);
+    setOpen(false);
+    setQuery("");
   }
 
   return (
@@ -169,6 +178,21 @@ export function SearchableSelect(props: SingleProps | MultiProps) {
                 <Command.Empty className="py-6 text-center text-sm text-gray-600 dark:text-gray-400">
                   {emptyText}
                 </Command.Empty>
+
+                {!props.multiple && selectedSingle && (
+                  <Command.Item
+                    value="kosongkan pilihan tanpa kode"
+                    onSelect={handleClear}
+                    className={cn(
+                      "flex cursor-pointer items-center gap-2 rounded px-2 py-2 text-sm",
+                      "text-gray-700 dark:text-gray-300",
+                      "data-[selected=true]:bg-gray-100 dark:data-[selected=true]:bg-zinc-700"
+                    )}
+                  >
+                    <X className="h-4 w-4 shrink-0" />
+                    <span>Kosongkan pilihan</span>
+                  </Command.Item>
+                )}
 
                 {options.map((o) => {
                   const isSelected = props.multiple

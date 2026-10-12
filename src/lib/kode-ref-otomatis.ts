@@ -9,15 +9,18 @@
 export interface HasilKodeRefOtomatis {
   kode: string;
   alasan: string;
+  /** Aturan eksplisit dari tim yang harus mengalahkan contoh lama yang keliru. */
+  prioritas?: boolean;
 }
 
-type Arah = "masuk" | "keluar";
+export type ArahKodeRef = "masuk" | "keluar";
 
 interface AturanKodeRef {
   kode: string;
-  arah?: Arah;
+  arah?: ArahKodeRef;
   pola: RegExp;
   alasan: string;
+  prioritas?: boolean;
 }
 
 const KONTEKS_VENDOR =
@@ -35,8 +38,30 @@ const ATURAN: AturanKodeRef[] = [
   { kode: "406", arah: "masuk", pola: /tokopedia/, alasan: "pencairan Tokopedia" },
   { kode: "407", arah: "masuk", pola: /tiktok|tik\s*tok/, alasan: "pencairan TikTok" },
   { kode: "408", arah: "masuk", pola: /\bsap\b/, alasan: "pencairan SAP" },
-  { kode: "409", arah: "masuk", pola: /\bjnt\b|j\s*&\s*t|jnt\s*vip/, alasan: "pencairan JNT VIP" },
+  { kode: "409", arah: "masuk", pola: /\bjnt\b|j\s*&\s*t|jnt\s*vip|global\s+jet\s+expr(?:ess)?|82gvht/, alasan: "pencairan JNT/Global Jet", prioritas: true },
   { kode: "410", arah: "masuk", pola: /mengantar/, alasan: "pencairan Mengantar" },
+
+  // Koreksi eksplisit tim. Aturan ini sengaja berprioritas agar contoh lama
+  // yang sempat tersimpan dari saran belum terkonfirmasi tidak menang lagi.
+  { kode: "601", pola: /kembalian\s+gaji(?:an)?/, alasan: "kembalian gajian", prioritas: true },
+  { kode: "510", arah: "keluar", pola: /sablon\s+polymailer|polymailer/, alasan: "payment sablon polymailer", prioritas: true },
+  { kode: "508", arah: "keluar", pola: /payment\s+leg\s+rok|leg\s+rok/, alasan: "payment leg rok", prioritas: true },
+  { kode: "62004", arah: "keluar", pola: /paket\s+postbronze|postbronze/, alasan: "paket postbronze", prioritas: true },
+  { kode: "802", arah: "keluar", pola: /payment\s+property\s+booth|property\s+booth/, alasan: "property booth", prioritas: true },
+  { kode: "804", arah: "keluar", pola: /beli\s+(?:hp|handphone)|hp\s*ke\s*\d/, alasan: "pembelian HP untuk tim", prioritas: true },
+  {
+    kode: "621",
+    arah: "keluar",
+    pola: /e\s*tol+l?.*mobil\s+ops|reimburse\s+bensin.*mobil\s+ops|lalamove\s+load\s+out|service\s+hp(?:\s+dan\s+ongkir)?|fee\s+driver/,
+    alasan: "operasional kendaraan/tim",
+    prioritas: true,
+  },
+  {
+    kode: "701",
+    pola: /tukar\s+uang.*cash|(?:[o0]ngkir|iklan)\s+(?:jan(?:uari)?|feb(?:ruari)?|mar(?:et)?|apr(?:il)?|mei|jun(?:i)?|jul(?:i)?|agu(?:stus)?|sep(?:t(?:ember)?)?|okt(?:ober)?|nov(?:ember)?|des(?:ember)?)\s+20\d{2}|vendor\s+elok\s+[o0]ngkir\s+retur\s+rijek|payment\s+belt\s+\d+\s*pcs|lalamove\s+load\s+in/,
+    alasan: "aktivitas ikut transfer",
+    prioritas: true,
+  },
 
   // Pengembalian uang dan kewajiban pelanggan.
   { kode: "401", pola: /refund|retur|cust\s+salah\s+trf|salah\s+transfer/, alasan: "refund/retur pelanggan" },
@@ -110,7 +135,7 @@ const ATURAN: AturanKodeRef[] = [
   { kode: "61704", arah: "keluar", pola: /jasa\s+marketplace.*tiktok|fee\s+tiktok/, alasan: "jasa marketplace TikTok" },
 
   // Ekspedisi, bank, pajak dan biaya rutin.
-  { kode: "500", arah: "keluar", pola: /lalamove|angkut\s+pembelian/, alasan: "angkut pembelian" },
+  { kode: "500", arah: "keluar", pola: /top\s*up\s+lalamove|angkut\s+pembelian/, alasan: "angkut pembelian" },
   { kode: "613", arah: "keluar", pola: /^(?!.*(?:budget\s+parcel|parcel\s+\d)).*(?:ekspedisi|jnt|j\s*&\s*t|sicepat|lion|gosend|go\s*send|pos\b|pengiriman)/, alasan: "pengiriman/ekspedisi" },
   { kode: "61101", arah: "keluar", pola: /transfer\s+antar\s+bank|biaya\s+transfer|admin\s+transfer/, alasan: "biaya transfer antar bank" },
   { kode: "611", arah: "keluar", pola: /biaya\s+admin|adm\s+bank|admin\s+bank|m[de]r\b/, alasan: "administrasi bank" },
@@ -154,7 +179,7 @@ const ATURAN: AturanKodeRef[] = [
   // Pembelian yang tidak mengandung nama vendor tetap boleh jatuh ke akun
   // vendor lain, tetapi diletakkan paling akhir agar kata "payment" tidak
   // menimpa aturan gaji, pajak, operasional, dan kategori lain.
-  { kode: "520", arah: "keluar", pola: /payment|pembelian|bahan\s+|kain\s+|konveksi/, alasan: "pembelian vendor lain" },
+  { kode: "520", arah: "keluar", pola: /(?:payment|pembelian)\s+(?:bahan|kain|konveksi)|vendor\s+lain/, alasan: "pembelian vendor lain" },
 ];
 
 function bersihkan(teks: string): string {
@@ -168,7 +193,7 @@ function bersihkan(teks: string): string {
 /** Cari aturan pertama yang cocok. Urutan aturan adalah bagian dari logika. */
 export function cariKodeRefOtomatis(
   keterangan: string,
-  arah: Arah,
+  arah: ArahKodeRef,
   kodeTersedia?: ReadonlySet<string>,
 ): HasilKodeRefOtomatis | null {
   const teks = bersihkan(keterangan);
@@ -178,7 +203,22 @@ export function cariKodeRefOtomatis(
     if (aturan.arah && aturan.arah !== arah) continue;
     if (!aturan.pola.test(teks)) continue;
     if (kodeTersedia && !kodeTersedia.has(aturan.kode)) continue;
-    return { kode: aturan.kode, alasan: aturan.alasan };
+    return { kode: aturan.kode, alasan: aturan.alasan, prioritas: aturan.prioritas };
+  }
+  return null;
+}
+
+/**
+ * Keterangan yang belum mengandung tujuan transaksi harus dibiarkan kosong.
+ * Contoh utama: tarik tunai ATM tidak menjelaskan uangnya dipakai untuk apa.
+ */
+export function alasanKodeHarusKosong(
+  keterangan: string,
+  arah: ArahKodeRef,
+): string | null {
+  const teks = bersihkan(keterangan);
+  if (arah === "keluar" && /tarikan\s+atm|penarikan\s+atm|tarik\s+tunai\s+atm/.test(teks)) {
+    return "tujuan penggunaan uang dari ATM belum diketahui";
   }
   return null;
 }

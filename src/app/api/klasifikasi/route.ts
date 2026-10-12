@@ -12,7 +12,7 @@ import {
   tandaiDuplikat,
   teksAlasanDuplikat,
 } from "@/lib/mutasi-pola";
-import { cariKodeRefOtomatis } from "@/lib/kode-ref-otomatis";
+import { alasanKodeHarusKosong, cariKodeRefOtomatis } from "@/lib/kode-ref-otomatis";
 import { tanggalKeIso } from "@/lib/utils";
 
 interface BarisMasuk {
@@ -69,8 +69,11 @@ export async function POST(req: Request) {
 
     const perluAi = siap.filter((row) => {
       const kunci = kunciBelajar(row.teks);
+      const otomatis = cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia);
+      if (alasanKodeHarusKosong(row.teks, row.arah)) return false;
+      if (otomatis?.prioritas) return false;
       if (kunci && contoh.has(`${row.arah}|${kunci}`)) return false;
-      if (cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia)) return false;
+      if (otomatis) return false;
       if (row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) return false;
       return true;
     });
@@ -120,6 +123,8 @@ export async function POST(req: Request) {
       const kunci = kunciBelajar(row.teks);
       const ingat = kunci ? contoh.get(`${row.arah}|${kunci}`) : undefined;
       const alasanDuplikat = duplikat[row.index];
+      const otomatis = cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia);
+      const alasanKosong = alasanKodeHarusKosong(row.teks, row.arah);
 
       let kodeAkunId: string | null = null;
       let kode: string | null = null;
@@ -127,14 +132,24 @@ export async function POST(req: Request) {
       let asal: "aturan" | "belajar" | "ai" | "kosong" = "kosong";
       let alasan: string | null = null;
 
-      if (ingat) {
+      if (alasanKosong) {
+        alasan = alasanKosong;
+      } else if (otomatis?.prioritas) {
+        const akunOtomatis = byKode.get(otomatis.kode);
+        if (akunOtomatis) {
+          kodeAkunId = akunOtomatis.id;
+          kode = akunOtomatis.kode;
+          statusKode = "SARAN_AI";
+          asal = "aturan";
+          alasan = otomatis.alasan;
+        }
+      } else if (ingat) {
         kodeAkunId = ingat.kodeAkunId;
         kode = ingat.kode;
-        statusKode = "DIKONFIRMASI";
+        statusKode = "SARAN_AI";
         asal = ingat.kode === KODE_PENJUALAN ? "aturan" : "belajar";
         alasan = ingat.kode === KODE_PENJUALAN ? "penjualan masuk default" : "koreksi tim sebelumnya";
       } else {
-        const otomatis = cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia);
         const akunOtomatis = otomatis ? byKode.get(otomatis.kode) : undefined;
         if (akunOtomatis) {
           kodeAkunId = akunOtomatis.id;
@@ -146,13 +161,13 @@ export async function POST(req: Request) {
           alasan = otomatis?.alasan ?? "aturan otomatis";
         }
       }
-      if (!kodeAkunId && row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) {
+      if (!alasanKosong && !kodeAkunId && row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) {
         kodeAkunId = kode400.id;
         kode = kode400.kode;
-        statusKode = "DIKONFIRMASI";
+        statusKode = "SARAN_AI";
         asal = "aturan";
         alasan = "penjualan masuk default";
-      } else if (!kodeAkunId) {
+      } else if (!alasanKosong && !kodeAkunId) {
         const tebakan = saranAi.get(row.index);
         const akun = tebakan ? byKode.get(tebakan) : undefined;
         if (akun) {

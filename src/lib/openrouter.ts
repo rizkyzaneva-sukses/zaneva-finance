@@ -209,6 +209,10 @@ Aturan tetap tim:
 - Pencairan QR / QRIS jangan diisi 400.
 - Uang masuk transfer orang (bukan yang di atas) biasanya 400, tapi baris itu sering sudah ditangani di luar prompt ini.
 - Contoh yang dikonfirmasi tim lebih kuat dari tebakanmu.
+- Teks "TRSF E-BANKING", CR/DB, nama orang, nominal, dan nama bank hanya format mutasi; itu bukan alasan memilih kode akun.
+- TARIKAN ATM / PENARIKAN ATM tanpa keterangan tujuan harus null. Jangan menebak 801, 80101, 805, atau kode lain.
+- Kata "payment" saja tidak cukup. Jika barang, vendor, atau tujuan pembayaran tidak jelas, isi null.
+- Kode kosong valid dan lebih baik daripada tebakan lemah.
 
 Aturan jawaban:
 - Balas HANYA JSON object dengan bentuk {"hasil":[{"index":0,"kode":"402"}, ...]}

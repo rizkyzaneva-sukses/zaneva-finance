@@ -544,6 +544,9 @@ export default function RekapPage() {
                   Kode berlabel &quot;saran&quot; belum dikonfirmasi
                 </Badge>
               </div>
+              <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-400">
+                Kode boleh dikosongkan dan dilengkapi nanti; transaksi tetap dapat disimpan.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button

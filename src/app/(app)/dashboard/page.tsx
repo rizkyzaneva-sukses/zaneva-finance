@@ -306,6 +306,8 @@ export default function DashboardPage() {
 
   // Skala bar dari net terbesar, bukan dari jumlah semua — net bisa positif & negatif
   const netTerbesar = Math.max(1, ...(data?.breakdown ?? []).map((b) => Math.abs(b.net)));
+  const totalSaldoRekening = (data?.kartuRekening ?? []).reduce((total, rekening) => total + rekening.saldo, 0);
+  const labelCakupanSaldo = rekeningId ? "rekening terpilih" : brandId ? "rekening brand" : "seluruh rekening";
 
   return (
     <>
@@ -434,9 +436,33 @@ export default function DashboardPage() {
           )}
 
           <div>
-            <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-50">
-              Saldo per rekening
-            </h2>
+            <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
+                  Saldo per rekening
+                </h2>
+                <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
+                  Ringkasan {labelCakupanSaldo} dan rincian saldo berjalan.
+                </p>
+              </div>
+            </div>
+            {data.kartuRekening.length > 0 && (
+              <Card className="mb-3 border-blue-200 bg-blue-50/70 p-4 dark:border-blue-900 dark:bg-blue-950/30 sm:p-4">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-wide text-blue-800 dark:text-blue-300">
+                      Total saldo {labelCakupanSaldo}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold tabular-nums text-blue-950 dark:text-blue-100">
+                      {formatRupiah(totalSaldoRekening)}
+                    </div>
+                  </div>
+                  <div className="text-sm text-blue-800 dark:text-blue-300">
+                    {data.kartuRekening.length} rekening aktif
+                  </div>
+                </div>
+              </Card>
+            )}
             {data.kartuRekening.length === 0 ? (
               <Card>
                 <EmptyState pesan="Belum ada rekening aktif." />
