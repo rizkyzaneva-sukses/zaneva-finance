@@ -966,7 +966,7 @@ export default function PanduanPage() {
   }, []);
 
   return (
-    <>
+    <div className="mx-auto max-w-7xl">
       <PageHeader
         judul="Panduan"
         deskripsi="Cara memakai Zaneva Finance: peta menu, mulai cepat, tanya jawab, alur kerja, dan pembagian tugas tiap role."
@@ -984,6 +984,6 @@ export default function PanduanPage() {
       {tab === "qna" && <TanyaJawab />}
       {tab === "workflow" && <Workflow />}
       {tab === "role" && <PenjelasanRole roleSaya={roleSaya} />}
-    </>
+    </div>
   );
 }

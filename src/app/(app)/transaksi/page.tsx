@@ -594,8 +594,8 @@ function TransaksiIsi() {
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Tanggal</th>
-                    <th className="min-w-52 px-2 py-2 font-medium">Kode akun</th>
-                    <th className="whitespace-nowrap px-2 py-2 font-medium">Rekening</th>
+                    <th className="min-w-44 px-2 py-2 font-medium">Kode akun</th>
+                    <th className="w-52 min-w-52 px-2 py-2 font-medium">Rekening</th>
                     <th className="min-w-52 px-2 py-2 font-medium">Keterangan</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Masuk</th>
                     <th className="whitespace-nowrap px-2 py-2 text-right font-medium">Keluar</th>
@@ -604,7 +604,7 @@ function TransaksiIsi() {
                     {tab === "penjualan" && (
                       <th className="whitespace-nowrap px-2 py-2 font-medium">Verifikasi</th>
                     )}
-                    <th className="px-2 py-2"></th>
+                    <th className="w-28 px-2 py-2"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -683,8 +683,10 @@ function TransaksiIsi() {
                           </div>
                         )}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-gray-600 dark:text-gray-400">
-                        {labelRekening(t.rekening.nama, t.rekening.nomorRekening)}
+                      <td className="w-52 min-w-52 px-2 py-2 text-gray-600 dark:text-gray-400">
+                        <span className="block whitespace-normal break-words">
+                          {labelRekening(t.rekening.nama, t.rekening.nomorRekening)}
+                        </span>
                       </td>
                       <td className="px-2 py-2 text-gray-900 dark:text-gray-50">{t.keterangan}</td>
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
@@ -740,7 +742,7 @@ function TransaksiIsi() {
                           </button>
                         </td>
                       )}
-                      <td className="whitespace-nowrap px-2 py-2 text-right">
+                      <td className="w-28 whitespace-nowrap px-2 py-2 text-right">
                         {t.statusAcc === "MENUNGGU" && bisaAccBendahara && (
                           <button
                             type="button"

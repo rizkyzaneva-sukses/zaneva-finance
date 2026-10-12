@@ -337,7 +337,7 @@ export function AppShell({ user, children }: { user: PenggunaProps; children: Re
         </header>
 
         <main className="min-w-0 px-4 py-6 sm:px-6 lg:px-8" inert={terbuka}>
-          <div className="mx-auto max-w-7xl">{children}</div>
+          <div className="w-full min-w-0">{children}</div>
         </main>
         <DialogGantiPassword
           buka={gantiPassword}
