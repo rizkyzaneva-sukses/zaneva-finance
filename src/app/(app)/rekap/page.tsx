@@ -47,6 +47,7 @@ interface SaranKode {
   kodeAkunId: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
   asal?: AsalKode;
+  alasan?: string | null;
   duplikat?: "orang" | "persis" | null;
   alasanDuplikat?: string | null;
 }
@@ -55,6 +56,7 @@ interface BarisPreview extends BarisParsing {
   kodeAkunId: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
   asalKode: AsalKode;
+  alasanKode: string | null;
   catatan: string;
   /** Kosong = tidak di-split */
   rincian: RincianForm[];
@@ -203,6 +205,7 @@ export default function RekapPage() {
             kodeAkunId: saran[i]?.kodeAkunId ?? null,
             statusKode: saran[i]?.statusKode ?? "KOSONG",
             asalKode: saran[i]?.asal ?? "kosong",
+            alasanKode: saran[i]?.alasan ?? null,
             catatan: "",
             rincian: [],
             dipilih: false,
@@ -686,8 +689,11 @@ export default function RekapPage() {
                             </span>
                           )}
                           {b.asalKode === "aturan" && (
-                            <span className="mt-1 inline-block text-xs text-blue-800 dark:text-blue-300">
-                              default penjualan
+                            <span
+                              className="mt-1 inline-block text-xs text-blue-800 dark:text-blue-300"
+                              title={b.alasanKode ?? undefined}
+                            >
+                              saran otomatis{b.alasanKode ? ` · ${b.alasanKode}` : ""}
                             </span>
                           )}
                           {b.asalKode === "belajar" && (

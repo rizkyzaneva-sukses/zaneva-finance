@@ -12,6 +12,7 @@ import {
   tandaiDuplikat,
   teksAlasanDuplikat,
 } from "@/lib/mutasi-pola";
+import { cariKodeRefOtomatis } from "@/lib/kode-ref-otomatis";
 import { tanggalKeIso } from "@/lib/utils";
 
 interface BarisMasuk {
@@ -53,6 +54,7 @@ export async function POST(req: Request) {
       select: { id: true, kode: true, nama: true },
     });
     const byKode = new Map(daftarKode.map((k) => [k.kode, k]));
+    const kodeTersedia = new Set(daftarKode.map((k) => k.kode));
     const kode400 = byKode.get(KODE_PENJUALAN);
     const contoh = await muatPetaContoh();
 
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
     const perluAi = siap.filter((row) => {
       const kunci = kunciBelajar(row.teks);
       if (kunci && contoh.has(`${row.arah}|${kunci}`)) return false;
+      if (cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia)) return false;
       if (row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) return false;
       return true;
     });
@@ -116,24 +119,40 @@ export async function POST(req: Request) {
     const hasil = siap.map((row) => {
       const kunci = kunciBelajar(row.teks);
       const ingat = kunci ? contoh.get(`${row.arah}|${kunci}`) : undefined;
-      const alasan = duplikat[row.index];
+      const alasanDuplikat = duplikat[row.index];
 
       let kodeAkunId: string | null = null;
       let kode: string | null = null;
       let statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI" = "KOSONG";
       let asal: "aturan" | "belajar" | "ai" | "kosong" = "kosong";
+      let alasan: string | null = null;
 
       if (ingat) {
         kodeAkunId = ingat.kodeAkunId;
         kode = ingat.kode;
         statusKode = "DIKONFIRMASI";
         asal = ingat.kode === KODE_PENJUALAN ? "aturan" : "belajar";
-      } else if (row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) {
+        alasan = ingat.kode === KODE_PENJUALAN ? "penjualan masuk default" : "koreksi tim sebelumnya";
+      } else {
+        const otomatis = cariKodeRefOtomatis(row.teks, row.arah, kodeTersedia);
+        const akunOtomatis = otomatis ? byKode.get(otomatis.kode) : undefined;
+        if (akunOtomatis) {
+          kodeAkunId = akunOtomatis.id;
+          kode = akunOtomatis.kode;
+          // Aturan tetap hanya mengisi saran. Tim tetap harus meninjau atau
+          // mengubahnya di preview sebelum dianggap terkonfirmasi.
+          statusKode = "SARAN_AI";
+          asal = "aturan";
+          alasan = otomatis?.alasan ?? "aturan otomatis";
+        }
+      }
+      if (!kodeAkunId && row.arah === "masuk" && !pengecualianKode400(row.teks) && kode400) {
         kodeAkunId = kode400.id;
         kode = kode400.kode;
         statusKode = "DIKONFIRMASI";
         asal = "aturan";
-      } else {
+        alasan = "penjualan masuk default";
+      } else if (!kodeAkunId) {
         const tebakan = saranAi.get(row.index);
         const akun = tebakan ? byKode.get(tebakan) : undefined;
         if (akun) {
@@ -141,6 +160,7 @@ export async function POST(req: Request) {
           kode = akun.kode;
           statusKode = "SARAN_AI";
           asal = "ai";
+          alasan = "saran AI";
         }
       }
 
@@ -149,8 +169,9 @@ export async function POST(req: Request) {
         kode,
         statusKode,
         asal,
-        duplikat: alasan,
-        alasanDuplikat: alasan ? teksAlasanDuplikat(alasan) : null,
+        alasan,
+        duplikat: alasanDuplikat,
+        alasanDuplikat: alasanDuplikat ? teksAlasanDuplikat(alasanDuplikat) : null,
       };
     });
 
