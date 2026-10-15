@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehRekap } from "@/lib/auth";
 import { parseMandiriPdf } from "@/lib/mandiri-parser";
+import { sesuaikanArahSemua } from "@/lib/arah-bank";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -35,7 +36,8 @@ export async function POST(req: Request) {
           { status: 422 }
         );
       }
-      return NextResponse.json(hasil);
+      const disesuaikan = sesuaikanArahSemua(hasil.baris);
+      return NextResponse.json({ ...hasil, baris: disesuaikan.baris, dibalikArah: disesuaikan.dibalik });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Gagal memproses PDF";
       if (message.includes("Password")) {

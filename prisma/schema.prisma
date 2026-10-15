@@ -36,8 +36,8 @@ enum StatusAcc {
   /// nilai ini. Transaksi yang menunggu tetap dihitung di laporan: uangnya
   /// sudah berpindah, yang menunggu adalah pengesahan pencatatannya.
   MENUNGGU
-  /// Input atau koreksi rekening bank oleh STAFF/BENDAHARA. Disahkan Finance
-  /// (ADMIN/OWNER). Bendahara tidak meng-ACC mutasi bank.
+  /// Koreksi setelah data tersimpan, oleh STAFF/BENDAHARA. Disahkan Finance
+  /// (ADMIN/OWNER). Unggahan awal tidak memakai status ini.
   PERLU_FINANCE
 }
 
@@ -283,6 +283,9 @@ model Transaksi {
   yakin      Boolean    @default(true)
   dedupeHash String
 
+  /// Satu kali Simpan Semua di Rekap. Kosong untuk data lama dan input manual.
+  batchId String?
+
   /// ACC pencatatan oleh ADMIN/OWNER. Lihat komentar enum StatusAcc.
   statusAcc StatusAcc @default(DISETUJUI)
   accOlehId String?
@@ -311,6 +314,7 @@ model Transaksi {
   @@index([kodeAkunId])
   @@index([statusKode])
   @@index([statusAcc])
+  @@index([batchId])
   @@index([diverifikasiPada])
 }
 

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
-import { bolehRekap, butuhAcc } from "@/lib/auth";
+import { bolehRekap } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { StatusAcc, StatusKode, Sumber } from "@/generated/prisma/enums";
+import { randomUUID } from "node:crypto";
 import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
 import { validasiRincian, type RincianBersih, type RincianMasuk } from "@/lib/split";
 import { bolehRekening } from "@/lib/akses";
@@ -78,6 +79,7 @@ export async function POST(req: Request) {
     }
     const rincianPerHash = new Map<string, RincianBersih[]>();
 
+    const batchId = randomUUID();
     const hasil = await prisma.$transaction(async (tx) => {
       let urutan = await urutanInputBerikutnya(tx, rekeningId);
 
@@ -135,7 +137,7 @@ export async function POST(req: Request) {
           keterangan: b.keterangan,
         });
 
-        // Hari+nama+nominal, atau baris yang sama persis — kecuali user mencentang Ikut.
+        // Hari+nama+nominal, atau baris yang sama persis — kecuali user klik Jadikan unik.
         const hashBentrok = existing.has(dedupeHash);
         if ((Boolean(alasanDuplikat[i]) || hashBentrok) && !b.paksa) {
           dilewati.push({
@@ -173,9 +175,11 @@ export async function POST(req: Request) {
           yakin: b.yakin !== false,
           // Duplikat yang sengaja dipaksa masuk butuh hash unik agar lolos constraint
           dedupeHash: hashFinal,
-          // STAFF menyimpan rekap bank → menunggu ACC Finance. ADMIN/OWNER langsung final.
-          // Bendahara tidak meng-ACC mutasi bank, dan tidak memakai endpoint ini.
-          statusAcc: butuhAcc(auth.user.role) ? StatusAcc.PERLU_FINANCE : StatusAcc.DISETUJUI,
+          // Simpan pertama kali langsung masuk. ACC Finance hanya kalau baris ini diubah lagi.
+          statusAcc: StatusAcc.DISETUJUI,
+          accOlehId: auth.user.id,
+          accPada: new Date(),
+          batchId,
           createdById: auth.user.id,
         });
 
@@ -219,7 +223,7 @@ export async function POST(req: Request) {
       if (untukDiingat.length > 0) await catatContoh(tx, untukDiingat);
 
       return { tersimpan: siapSimpan.length, dilewati: dilewati.length, barisDilewati: dilewati };
-    });
+    }, { timeout: 60_000 });
 
     return NextResponse.json(hasil);
   } catch (err) {

@@ -32,7 +32,7 @@ const OPSI_ROLE = [
   { value: "OWNER", label: "OWNER", hint: "Akses penuh, kelola pengguna, lihat Log" },
   { value: "ADMIN", label: "ADMIN (Finance)", hint: "Semua kecuali kelola pengguna; meng-ACC input dan koreksi rekening bank" },
   { value: "BENDAHARA", label: "BENDAHARA", hint: "Input petty cash saja, langsung masuk. Tidak meng-ACC mutasi bank" },
-  { value: "STAFF", label: "STAFF", hint: "Rekap & koreksi rekening bank (menunggu ACC Finance), tanpa hapus" },
+  { value: "STAFF", label: "STAFF", hint: "Rekap langsung tersimpan. Koreksi setelah simpan menunggu ACC Finance" },
 ];
 
 interface FormState {

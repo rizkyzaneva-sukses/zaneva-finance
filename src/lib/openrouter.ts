@@ -22,8 +22,9 @@ Setiap elemen array wajib punya field persis seperti ini:
 }
 
 Cara menentukan "arah":
-- Tanda "+" , warna hijau, label "CR"/"Cr."/"Kredit" => "masuk"
-- Tanda "-" , warna merah, label "DB"/"Db."/"Debit" => "keluar"
+- Tanda "+" , warna hijau, label "CR"/"Cr."/"Kredit", atau "KR OTOMATIS" => "masuk"
+- Tanda "-" , warna merah, label "DB"/"Db."/"Debit", atau tarikan ATM => "keluar"
+- "CR" dan "KR OTOMATIS" selalu uang masuk. "DB" selalu uang keluar. Jangan dibalik.
 - Kalau ada dua kolom terpisah (Debit dan Kredit), kolom mana yang terisi menentukan arahnya.
 
 Aturan penting:

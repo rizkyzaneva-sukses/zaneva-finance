@@ -402,9 +402,8 @@ export default function DashboardPage() {
             >
               <ListChecks className="h-4 w-4 shrink-0" />
               <span>
-                <strong>{data.menungguAcc} transaksi menunggu ACC</strong> — input dan koreksi rekening
-                bank dari STAFF, disahkan Finance. Bendahara tidak meng-ACC mutasi bank. Transaksinya
-                tetap dihitung di laporan.
+                <strong>{data.menungguAcc} transaksi menunggu ACC</strong> — koreksi setelah data
+                disimpan, bukan unggahan awal. Disahkan Finance. Transaksinya tetap dihitung di laporan.
               </span>
             </Link>
           )}

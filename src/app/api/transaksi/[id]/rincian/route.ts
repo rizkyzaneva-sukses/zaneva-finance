@@ -71,7 +71,7 @@ export async function PUT(req: Request, { params }: Params) {
           statusKode: rincianBaru.length > 0 ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           updatedBy: { connect: { id: auth.user.id } },
           // Split menyentuh struktur kode akun → selalu wajib ACC finance.
-          ...fieldAccUntukPerubahan(auth.user, induk.rekening.bank, true),
+          ...fieldAccUntukPerubahan(auth.user, induk.rekening.bank, true, induk.accOlehId),
         },
       });
 

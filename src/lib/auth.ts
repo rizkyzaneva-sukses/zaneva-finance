@@ -49,7 +49,7 @@ export async function getPenggunaAktif(): Promise<PenggunaAktif | null> {
  * Matriks izin. "Finance" = ADMIN.
  *
  *                              OWNER  ADMIN  STAFF  BENDAHARA
- *  Rekap (upload mutasi bank)    ✓      ✓      ✓*      —       (* bank menunggu ACC Finance)
+ *  Rekap (upload mutasi bank)    ✓      ✓      ✓       —       (simpan awal langsung masuk)
  *  Koreksi / input manual        ✓      ✓      ✓*      ✓*      (* bank & koreksi kode menunggu Finance;
  *                                                              input petty cash langsung masuk)
  *  ACC mutasi bank (Finance)     ✓      ✓      —       —

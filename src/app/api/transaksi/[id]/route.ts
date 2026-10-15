@@ -44,7 +44,7 @@ export async function PATCH(req: Request, { params }: Params) {
     const sentuhPenting = "kodeAkunId" in body || "catatan" in body;
     const data: Prisma.TransaksiUpdateInput = {
       updatedBy: { connect: { id: auth.user.id } },
-      ...fieldAccUntukPerubahan(auth.user, lama.rekening.bank, sentuhPenting),
+      ...fieldAccUntukPerubahan(auth.user, lama.rekening.bank, sentuhPenting, lama.accOlehId),
     };
 
     if ("kodeAkunId" in body && lama._count.rincian > 0) {

@@ -6,12 +6,12 @@ import { butuhAcc, type PenggunaAktif } from "@/lib/auth";
  * Aturan ACC transaksi. "Finance" = ADMIN / OWNER.
  * Bendahara tidak meng-ACC mutasi bank. Tugasnya hanya mencatat petty cash.
  *
- * 1. Input petty cash oleh Bendahara/Staff → langsung DISETUJUI.
- * 2. Input rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
- * 3. Koreksi rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
+ * 1. Input baru (rekap maupun manual, bank maupun petty cash) → DISETUJUI.
+ *    Menyimpan pertama kali bukan koreksi.
+ * 2. Koreksi rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
  *    Koreksi petty cash yang menyentuh kode akun, catatan, atau split
  *    juga PERLU_FINANCE. Koreksi ringan petty cash tetap DISETUJUI.
- * 4. ADMIN/OWNER mengubah → DISETUJUI; mengubah berarti memutuskan.
+ * 3. ADMIN/OWNER mengubah → DISETUJUI; mengubah berarti memutuskan.
  */
 
 /** Field ACC (skalar) yang ditulis bersama transaksi. */
@@ -28,16 +28,10 @@ export function inputPettyCashTanpaAcc(bank: Bank): boolean {
 
 /**
  * Field ACC untuk transaksi BARU.
- * Petty cash oleh Bendahara/Staff langsung disetujui.
- * Rekening bank oleh Bendahara/Staff menunggu Finance, bukan Bendahara.
+ * Unggahan dan input manual langsung disetujui. ACC Finance hanya untuk koreksi
+ * setelah data itu sudah tersimpan.
  */
-export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, bank: Bank): FieldAcc {
-  if (butuhAcc(user.role) && inputPettyCashTanpaAcc(bank)) {
-    return { statusAcc: StatusAcc.DISETUJUI, accOlehId: user.id, accPada: new Date() };
-  }
-  if (butuhAcc(user.role)) {
-    return { statusAcc: StatusAcc.PERLU_FINANCE, accOlehId: null, accPada: null };
-  }
+export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, _bank: Bank): FieldAcc {
   return { statusAcc: StatusAcc.DISETUJUI, accOlehId: user.id, accPada: new Date() };
 }
 
@@ -53,7 +47,8 @@ export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, ban
 export function fieldAccUntukPerubahan(
   user: Pick<PenggunaAktif, "id" | "role">,
   bank: Bank,
-  sentuhPenting = false
+  sentuhPenting = false,
+  accOlehId: string | null = null
 ): Prisma.TransaksiUpdateInput {
   const setujui: Prisma.TransaksiUpdateInput = {
     statusAcc: StatusAcc.DISETUJUI,
@@ -64,7 +59,8 @@ export function fieldAccUntukPerubahan(
   if (inputPettyCashTanpaAcc(bank) && !sentuhPenting) return setujui;
   return {
     statusAcc: StatusAcc.PERLU_FINANCE,
-    accOleh: { disconnect: true },
+    // Putus hanya kalau memang ada. Disconnect pada relasi kosong membuat Prisma melempar.
+    ...(accOlehId ? { accOleh: { disconnect: true as const } } : {}),
     accPada: null,
   };
 }

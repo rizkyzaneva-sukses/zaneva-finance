@@ -147,8 +147,11 @@ export async function POST(req: Request) {
         kodeAkunId = ingat.kodeAkunId;
         kode = ingat.kode;
         statusKode = "SARAN_AI";
-        asal = ingat.kode === KODE_PENJUALAN ? "aturan" : "belajar";
-        alasan = ingat.kode === KODE_PENJUALAN ? "penjualan masuk default" : "koreksi tim sebelumnya";
+        asal = ingat.kode === KODE_PENJUALAN && row.arah === "masuk" ? "aturan" : "belajar";
+        alasan =
+          ingat.kode === KODE_PENJUALAN && row.arah === "masuk"
+            ? "penjualan masuk default"
+            : "koreksi tim sebelumnya";
       } else {
         const akunOtomatis = otomatis ? byKode.get(otomatis.kode) : undefined;
         if (akunOtomatis) {

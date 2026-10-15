@@ -19,6 +19,18 @@ export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput
   const status = sp.get("statusKode");
   if (status && status in StatusKode) where.statusKode = status as StatusKode;
 
+  if (sp.get("kodeKosong") === "1") where.statusKode = StatusKode.KOSONG;
+
+  // Kode 400 (penjualan) yang nominalnya jatuh ke kolom keluar.
+  if (sp.get("salahKolom400") === "1") {
+    dan.push({
+      kodeAkun: { kode: "400" },
+      uangKeluar: { gt: 0 },
+      uangMasuk: { lte: 0 },
+      rincian: { none: {} },
+    });
+  }
+
   if (sp.get("belumBeres") === "1") {
     dan.push({
       OR: [

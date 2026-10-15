@@ -12,6 +12,7 @@ import {
   Check,
   CheckCheck,
   Clock,
+  ArrowLeftRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -79,6 +80,15 @@ function penjualan400(t: Pick<Transaksi, "kodeAkun" | "rincian">): boolean {
   return t.kodeAkun?.kode === "400" || t.rincian.some((r) => r.kodeAkun.kode === "400");
 }
 
+function kode400SalahKolom(t: Transaksi): boolean {
+  return (
+    t.kodeAkun?.kode === "400" &&
+    t.rincian.length === 0 &&
+    Number(t.uangKeluar) > 0 &&
+    !(Number(t.uangMasuk) > 0)
+  );
+}
+
 function TransaksiIsi() {
   const params = useSearchParams();
   const router = useRouter();
@@ -99,7 +109,14 @@ function TransaksiIsi() {
   const [sampai, setSampai] = React.useState("");
   const [cari, setCari] = React.useState("");
   const [belumBeres, setBelumBeres] = React.useState(params.get("belumBeres") === "1");
+  const [kodeKosong, setKodeKosong] = React.useState(params.get("kodeKosong") === "1");
   const [menungguAcc, setMenungguAcc] = React.useState(params.get("menungguAcc") === "1");
+  const [dipilih, setDipilih] = React.useState<string[]>([]);
+  const [pindahBuka, setPindahBuka] = React.useState(false);
+  const [rekeningTujuan, setRekeningTujuan] = React.useState<string | null>(null);
+  const [balikBuka, setBalikBuka] = React.useState(false);
+  const [balikIds, setBalikIds] = React.useState<string[]>([]);
+  const [mengubahArah, setMengubahArah] = React.useState(false);
   const [verifikasi, setVerifikasi] = React.useState<string | null>(null);
 
   const [role, setRole] = React.useState<string | null>(null);
@@ -107,7 +124,7 @@ function TransaksiIsi() {
   const [formManual, setFormManual] = React.useState<FormManual | null>(null);
   const [menyimpanManual, setMenyimpanManual] = React.useState(false);
 
-  // Rekening bank dari STAFF menunggu Finance (PERLU_FINANCE).
+  // Koreksi setelah simpan oleh STAFF/BENDAHARA menunggu Finance (PERLU_FINANCE).
   // MENUNGGU hanya sisa data lama; Bendahara tidak meng-ACC mutasi bank.
   const bisaAccBendahara = role === "ADMIN" || role === "OWNER" || role === "BENDAHARA";
   const bisaAccFinance = role === "ADMIN" || role === "OWNER";
@@ -131,13 +148,14 @@ function TransaksiIsi() {
     if (sampai) q.set("sampai", sampai);
     if (cari) q.set("cari", cari);
     if (belumBeres) q.set("belumBeres", "1");
+    if (kodeKosong) q.set("kodeKosong", "1");
     if (menungguAcc) q.set("menungguAcc", "1");
     if (tab === "penjualan") {
       q.set("penjualan", "1");
       if (verifikasi) q.set("verifikasi", verifikasi);
     }
     return q;
-  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, menungguAcc, tab, verifikasi]);
+  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, kodeKosong, menungguAcc, tab, verifikasi]);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -150,6 +168,7 @@ function TransaksiIsi() {
       if (!res.ok) throw new Error(data.error);
       setDaftar(data.transaksi);
       setTotal(data.total);
+      setDipilih([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal memuat transaksi");
     } finally {
@@ -311,19 +330,95 @@ function TransaksiIsi() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      toast.success(
-        data.transaksi.statusAcc === "PERLU_FINANCE"
-          ? "Transaksi tersimpan, menunggu ACC Finance"
-          : data.transaksi.statusAcc === "MENUNGGU"
-            ? "Transaksi tersimpan, menunggu ACC Bendahara"
-            : "Transaksi tersimpan"
-      );
+      toast.success("Transaksi tersimpan");
       setFormManual(null);
       muat();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan transaksi");
     } finally {
       setMenyimpanManual(false);
+    }
+  }
+
+  async function kumpulkan400SalahKolom() {
+    setMengubahArah(true);
+    try {
+      const ids: string[] = [];
+      for (let h = 1; h <= 5; h++) {
+        const q = new URLSearchParams();
+        if (filterRekening) q.set("rekeningId", filterRekening);
+        if (dari) q.set("dari", dari);
+        if (sampai) q.set("sampai", sampai);
+        if (cari) q.set("cari", cari);
+        q.set("salahKolom400", "1");
+        q.set("halaman", String(h));
+        q.set("perHalaman", "200");
+        const res = await fetch(`/api/transaksi?${q}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        for (const t of data.transaksi as { id: string }[]) ids.push(t.id);
+        if (ids.length >= Number(data.total) || data.transaksi.length === 0) break;
+      }
+      if (ids.length === 0) {
+        toast.error("Tidak ada kode 400 di kolom Keluar pada filter ini");
+        return;
+      }
+      if (ids.length >= 1000) {
+        toast.warning("Hanya 1000 transaksi pertama yang ikut. Ulangi untuk sisanya.");
+      }
+      setBalikIds(ids.slice(0, 1000));
+      setBalikBuka(true);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengumpulkan transaksi");
+    } finally {
+      setMengubahArah(false);
+    }
+  }
+
+  async function jalankanBalik(ids: string[]) {
+    if (ids.length === 0) return;
+    setMengubahArah(true);
+    try {
+      const res = await fetch("/api/transaksi/arah", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(
+        data.perluAcc
+          ? `${data.diubah} transaksi dibalik, menunggu ACC Finance`
+          : `${data.diubah} transaksi dibalik arahnya`
+      );
+      setBalikBuka(false);
+      muat();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal membalik arah");
+    } finally {
+      setMengubahArah(false);
+    }
+  }
+
+  async function pindahkanDipilih() {
+    if (!rekeningTujuan || dipilih.length === 0) return;
+    setMengubahArah(true);
+    try {
+      const res = await fetch("/api/transaksi/pindah", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: dipilih, rekeningTujuanId: rekeningTujuan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      toast.success(`${data.jumlah} transaksi dipindah ke ${data.tujuan}`);
+      setPindahBuka(false);
+      setRekeningTujuan(null);
+      muat();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memindahkan");
+    } finally {
+      setMengubahArah(false);
     }
   }
 
@@ -509,7 +604,7 @@ function TransaksiIsi() {
               />
             </div>
           </div>
-          <label className="flex items-center gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+          <label className="flex items-start gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
               checked={belumBeres}
@@ -517,11 +612,33 @@ function TransaksiIsi() {
                 setBelumBeres(e.target.checked);
                 setHalaman(1);
               }}
-              className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
             />
-            Hanya yang belum beres
+            <span>
+              Hanya yang belum beres
+              <span className="block text-xs text-gray-600 dark:text-gray-400">
+                Kode kosong, masih saran, atau bacaan AI yang ragu. Bukan soal ACC.
+              </span>
+            </span>
           </label>
-          <label className="flex items-center gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+          <label className="flex items-start gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={kodeKosong}
+              onChange={(e) => {
+                setKodeKosong(e.target.checked);
+                setHalaman(1);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+            />
+            <span>
+              Hanya kode akun kosong
+              <span className="block text-xs text-gray-600 dark:text-gray-400">
+                Belum punya kode sama sekali. Saran AI tidak ikut.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
             <input
               type="checkbox"
               checked={menungguAcc}
@@ -529,9 +646,14 @@ function TransaksiIsi() {
                 setMenungguAcc(e.target.checked);
                 setHalaman(1);
               }}
-              className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
             />
-            Hanya yang menunggu ACC
+            <span>
+              Hanya yang menunggu ACC
+              <span className="block text-xs text-gray-600 dark:text-gray-400">
+                Sudah tersimpan, lalu dikoreksi, dan Finance belum mengesahkan.
+              </span>
+            </span>
           </label>
         </div>
       </Card>
@@ -543,6 +665,26 @@ function TransaksiIsi() {
           <EmptyState pesan="Belum ada transaksi yang cocok dengan filter ini." />
         ) : (
           <>
+            {daftar.some(kode400SalahKolom) && (
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2.5 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-100">
+                <span>
+                  <strong>{daftar.filter(kode400SalahKolom).length} penjualan kode 400</strong> di halaman ini ada di
+                  kolom Keluar. Seharusnya uang masuk. Tombolnya memindahkan semua yang sama pada filter rekening,
+                  tanggal, dan cari — bukan cuma halaman ini.
+                </span>
+                <Button
+                  type="button"
+                  varian="sekunder"
+                  disabled={mengubahArah}
+                  onClick={() => {
+                    void kumpulkan400SalahKolom();
+                  }}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Pindahkan ke Masuk
+                </Button>
+              </div>
+            )}
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-gray-600 dark:text-gray-400">
                 {total} transaksi · halaman {halaman} dari {totalHalaman}
@@ -558,6 +700,31 @@ function TransaksiIsi() {
                   >
                     <CheckCheck className="h-4 w-4" />
                     Verifikasi {daftar.filter((t) => t.statusAcc === "MENUNGGU").length} (Bendahara)
+                  </Button>
+                )}
+                {dipilih.length > 0 && (
+                  <Button
+                    varian="sekunder"
+                    disabled={mengubahArah}
+                    onClick={() => {
+                      setBalikIds(dipilih);
+                      setBalikBuka(true);
+                    }}
+                  >
+                    <ArrowLeftRight className="h-4 w-4" />
+                    Balik arah ({dipilih.length})
+                  </Button>
+                )}
+                {bisaAccFinance && dipilih.length > 0 && (
+                  <Button
+                    varian="sekunder"
+                    disabled={mengubahArah}
+                    onClick={() => {
+                      setRekeningTujuan(null);
+                      setPindahBuka(true);
+                    }}
+                  >
+                    Pindah rekening ({dipilih.length})
                   </Button>
                 )}
                 {bisaAccFinance && daftar.some((t) => t.statusAcc === "PERLU_FINANCE") && (
@@ -593,6 +760,15 @@ function TransaksiIsi() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-200 text-left text-gray-600 dark:border-zinc-700 dark:text-gray-400">
+                    <th className="w-10 px-2 py-2">
+                      <input
+                        type="checkbox"
+                        checked={daftar.length > 0 && daftar.every((t) => dipilih.includes(t.id))}
+                        onChange={(e) => setDipilih(e.target.checked ? daftar.map((t) => t.id) : [])}
+                        aria-label="Pilih semua di halaman ini"
+                        className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+                      />
+                    </th>
                     <th className="whitespace-nowrap px-2 py-2 font-medium">Tanggal</th>
                     <th className="min-w-44 px-2 py-2 font-medium">Kode akun</th>
                     <th className="w-52 min-w-52 px-2 py-2 font-medium">Rekening</th>
@@ -621,6 +797,19 @@ function TransaksiIsi() {
                           "bg-green-50 dark:bg-green-950/30"
                       )}
                     >
+                      <td className="px-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={dipilih.includes(t.id)}
+                          onChange={(e) =>
+                            setDipilih((prev) =>
+                              e.target.checked ? [...prev, t.id] : prev.filter((id) => id !== t.id)
+                            )
+                          }
+                          aria-label="Pilih transaksi"
+                          className="h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+                        />
+                      </td>
                       <td className="whitespace-nowrap px-2 py-2 text-gray-900 dark:text-gray-50">
                         {formatTanggal(t.tanggal)}
                         {!t.yakin && (
@@ -692,7 +881,15 @@ function TransaksiIsi() {
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
                         {Number(t.uangMasuk) ? formatAngka(t.uangMasuk) : ""}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
+                      <td
+                        className={cn(
+                          "whitespace-nowrap px-2 py-2 text-right tabular-nums",
+                          kode400SalahKolom(t)
+                            ? "bg-red-50 font-medium text-red-800 dark:bg-red-950/40 dark:text-red-200"
+                            : "text-gray-900 dark:text-gray-50"
+                        )}
+                        title={kode400SalahKolom(t) ? "Kode 400 adalah uang masuk. Balik arahnya kalau ini salah kolom." : undefined}
+                      >
                         {Number(t.uangKeluar) ? formatAngka(t.uangKeluar) : ""}
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
@@ -769,6 +966,19 @@ function TransaksiIsi() {
                         )}
                         <button
                           type="button"
+                          title="Balik masuk ↔ keluar"
+                          aria-label="Balik masuk dan keluar"
+                          disabled={mengubahArah}
+                          onClick={() => {
+                            setBalikIds([t.id]);
+                            setBalikBuka(true);
+                          }}
+                          className="rounded p-1.5 text-gray-500 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-zinc-700"
+                        >
+                          <ArrowLeftRight className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
                           title={t.rincian.length > 0 ? "Ubah split" : "Split transaksi ini"}
                           aria-label={t.rincian.length > 0 ? "Ubah split" : "Split transaksi ini"}
                           onClick={() => setSplitTarget(t)}
@@ -800,6 +1010,7 @@ function TransaksiIsi() {
                           key={r.id}
                           className="border-b border-gray-100 bg-gray-50 dark:border-zinc-800 dark:bg-zinc-800/40"
                         >
+                          <td className="px-2 py-1.5"></td>
                           <td className="px-2 py-1.5"></td>
                           <td className="px-2 py-1.5 text-xs text-gray-900 dark:text-gray-50">
                             <span className="font-mono">{r.kodeAkun.kode}</span> — {r.kodeAkun.nama}
@@ -850,11 +1061,54 @@ function TransaksiIsi() {
       </Card>
 
       <Modal
+        buka={balikBuka}
+        judul="Balik masuk dan keluar"
+        deskripsi={`${balikIds.length} transaksi akan ditukar kolomnya. Yang tadinya keluar jadi masuk, dan sebaliknya. Saldo rekening dihitung ulang.`}
+        onTutup={() => setBalikBuka(false)}
+      >
+        <div className="flex justify-end gap-2">
+          <Button type="button" varian="sekunder" onClick={() => setBalikBuka(false)}>
+            Batal
+          </Button>
+          <Button type="button" loading={mengubahArah} onClick={() => jalankanBalik(balikIds)}>
+            Balik arah
+          </Button>
+        </div>
+      </Modal>
+
+      <Modal
+        buka={pindahBuka}
+        judul="Pindah ke rekening lain"
+        deskripsi={`${dipilih.length} transaksi pindah. Saldo rekening asal dan tujuan dihitung ulang. Hanya Finance.`}
+        onTutup={() => setPindahBuka(false)}
+      >
+        <div className="grid gap-4">
+          <SearchableSelect
+            label="Rekening tujuan"
+            required
+            value={rekeningTujuan}
+            onChange={setRekeningTujuan}
+            options={rekening}
+            placeholder="Pilih rekening"
+            emptyText="Belum ada rekening"
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" varian="sekunder" onClick={() => setPindahBuka(false)}>
+              Batal
+            </Button>
+            <Button type="button" loading={mengubahArah} disabled={!rekeningTujuan} onClick={pindahkanDipilih}>
+              Pindahkan
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
         buka={formManual !== null}
         judul="Tambah Transaksi Manual"
         deskripsi={
           role === "STAFF" || role === "BENDAHARA"
-            ? "Transaksi ke rekening bank menunggu ACC Finance. Input ke petty cash langsung masuk tanpa ACC."
+            ? "Langsung tersimpan. Kalau nanti diubah, koreksinya menunggu ACC Finance. Petty cash juga langsung masuk."
             : "Untuk transaksi yang tidak ada di mutasi bank, mis. kas tunai atau penyesuaian."
         }
         onTutup={() => setFormManual(null)}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { bolehRekap } from "@/lib/auth";
 import { parseGambarMutasi, dedupeHasilParsing } from "@/lib/openrouter";
+import { sesuaikanArahSemua } from "@/lib/arah-bank";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const MAX_FILES = 10;
@@ -44,7 +45,11 @@ export async function POST(req: Request) {
       })
     );
 
-    return NextResponse.json({ baris: dedupeHasilParsing(hasil.flat()) });
+    const disesuaikan = sesuaikanArahSemua(hasil.flat());
+    return NextResponse.json({
+      baris: dedupeHasilParsing(disesuaikan.baris),
+      dibalikArah: disesuaikan.dibalik,
+    });
   } catch (err) {
     return apiError(err);
   }

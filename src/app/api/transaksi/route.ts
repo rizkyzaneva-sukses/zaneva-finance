@@ -111,7 +111,7 @@ export async function POST(req: Request) {
           statusKode: body.kodeAkunId ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           sumber: Sumber.MANUAL,
           dedupeHash: buatDedupeHash({ tanggalIso, uangMasuk, uangKeluar, keterangan }),
-          // Petty cash oleh bendahara/staff langsung DISETUJUI; rekening bank menunggu Finance.
+          // Input baru langsung disetujui. ACC Finance hanya untuk koreksi setelah tersimpan.
           ...fieldAccUntukInput(auth.user, rekening.bank),
           createdById: auth.user.id,
         },

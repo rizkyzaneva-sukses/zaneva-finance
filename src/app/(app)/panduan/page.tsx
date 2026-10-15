@@ -108,7 +108,7 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
   {
     role: "STAFF",
     judul: "Rutinitas harian: merekap mutasi bank",
-    ringkas: "Dari screenshot atau PDF mutasi sampai tersimpan dan menunggu ACC Finance.",
+    ringkas: "Dari screenshot atau PDF mutasi sampai tersimpan. ACC Finance hanya kalau datanya diubah lagi.",
     langkah: [
       {
         judul: "Buka Rekap dan pilih rekening dulu",
@@ -137,11 +137,10 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         judul: "Simpan Semua",
         isi: (
           <>
-            Yang dicentang <strong>Ikut</strong> tersimpan dengan status <Badge warna="kuning">Perlu ACC Finance</Badge> sampai
-            ADMIN/OWNER mengesahkan. Bendahara tidak meng-ACC mutasi bank. Baris bertanda{" "}
-            <strong>Duplikat</strong> tidak ikut: centangnya kosong. Centang Ikut hanya kalau transaksi kembar itu memang
-            terjadi dua kali. Beberapa baris bisa diganti kodenya bareng-bareng lewat <strong>Ubah Sekaligus</strong>; itu
-            baru tersimpan setelah Simpan Semua.
+            Simpan Semua langsung masuk, tanpa ACC. ACC Finance hanya kalau transaksi itu diubah lagi sesudah
+            tersimpan. Baris bertanda <strong>Duplikat</strong> tidak ikut sampai kamu klik <strong>Jadikan unik</strong>.
+            Beberapa baris bisa diganti kodenya, dibalik arahnya, atau diisi tanggalnya bareng-bareng. Itu baru tersimpan
+            setelah Simpan Semua.
           </>
         ),
       },
@@ -166,8 +165,8 @@ const QUICK_START: { role: Role; judul: string; ringkas: string; langkah: Langka
         isi: (
           <>
             Di <Tautan href="/dashboard">Dashboard</Tautan> (kelompok Operasional) ada banner &quot;menunggu ACC&quot;. Klik untuk membuka{" "}
-            <Tautan href="/transaksi?menungguAcc=1">daftarnya</Tautan>. Yang menunggu adalah input dan koreksi rekening bank
-            dari STAFF (badge kuning Perlu ACC Finance). Bendahara tidak meng-ACC mutasi bank. Lingkupmu:{" "}
+            <Tautan href="/transaksi?menungguAcc=1">daftarnya</Tautan>. Yang menunggu hanya koreksi setelah data
+            tersimpan (badge kuning Perlu ACC Finance), bukan unggahan awal. Bendahara tidak meng-ACC mutasi bank. Lingkupmu:{" "}
             <strong>klik centang per baris</strong> atau <strong>Finalkan semua di halaman ini</strong>. Kalau ada yang salah,
             cukup ubah sendiri: perubahan oleh Finance otomatis disahkan.
           </>
@@ -332,12 +331,22 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Rekap",
     t: "Kenapa ada baris bertanda Duplikat, dan kenapa tidak ikut tersimpan?",
-    j: "Sistem menandai duplikat kalau di rekening yang sama sudah ada transaksi dengan hari, nama pengirim, dan nominal yang sama — atau keterangan yang persis sama. Biasanya ini screenshot yang tumpang tindih, atau transfer yang sama terunggah lagi. Baris itu tidak ikut saat Simpan Semua. Kalau memang ada dua transaksi kembar yang benar-benar terjadi, centang Ikut pada baris itu.",
+    j: "Sistem menandai duplikat kalau di rekening yang sama sudah ada transaksi dengan hari, nama pengirim, dan nominal yang sama — atau keterangan yang persis sama. Biasanya ini screenshot yang tumpang tindih, atau transfer yang sama terunggah lagi. Baris itu tidak ikut saat Simpan Semua. Kalau memang ada dua transaksi kembar yang benar-benar terjadi, klik Jadikan unik pada baris itu. Batalkan mengembalikannya jadi duplikat.",
   },
   {
     kategori: "Rekap",
     t: "Kenapa transfer masuk langsung dapat kode 400?",
     j: "Uang masuk yang bukan marketplace (Shopee, Lazada, Tokopedia, TikTok, Midtrans), bukan JNT VIP, bukan SAP, bukan Mengantar, dan bukan pencairan QR diisi kode 400 Penjualan. Itu baru di preview, masih bisa diganti sebelum disimpan. Centang beberapa baris lalu klik Ubah Sekaligus kalau mau mengganti kodenya bareng-bareng. Perubahan itu baru masuk database setelah Simpan Semua.",
+  },
+  {
+    kategori: "Rekap",
+    t: "Kenapa kode 400 bisa jatuh ke kolom Keluar?",
+    j: "Kode 400 adalah penjualan, jadi uangnya harus di kolom Masuk. Saat baca mutasi, keterangan CR dan KR OTOMATIS dipindah ke Masuk; DB dan tarikan ATM dipindah ke Keluar. Kalau masih salah, di preview centang barisnya lalu klik Balik arah, atau klik Pindahkan ke Masuk pada peringatan kode 400. Belum tersimpan sampai Simpan Semua. Transaksi yang sudah tersimpan dibalik dari halaman Transaksi (centang beberapa baris) atau dari riwayat unggahan di Rekap.",
+  },
+  {
+    kategori: "Rekap",
+    t: "Bagaimana mengisi tanggal yang kosong sekaligus, atau memindah unggahan yang salah rekening?",
+    j: "Di preview, centang beberapa baris lalu klik Isi tanggal. Tanggal yang sudah ada ikut tertimpa, dan baru tersimpan saat Simpan Semua. Tiap baris juga punya isian tanggal sendiri. Kalau rekeningnya salah setelah disimpan, buka Rekap, pilih rekening itu, lalu di Riwayat unggahan klik Pindah rekening. Yang memindahkan harus Finance. Bisa juga centang transaksi di halaman Transaksi lalu Pindah rekening.",
   },
   {
     kategori: "Rekap",
@@ -352,7 +361,7 @@ const QNA: { kategori: string; t: string; j: string }[] = [
   {
     kategori: "Rekap",
     t: "Kenapa ada tanda \"beda dgn bank\" di kolom saldo?",
-    j: "Saldo di app dihitung sendiri: saldo awal ditambah semua masuk dikurangi keluar. Kalau saldo yang tertulis di mutasi bank berbeda Rp 1 atau lebih, baris itu ditandai. Biasanya ada transaksi yang terlewat atau saldo awal rekening salah.",
+    j: "Saldo di app dihitung sendiri: saldo awal ditambah semua masuk dikurangi keluar. Kalau saldo yang tertulis di mutasi bank berbeda Rp 1 atau lebih, baris itu ditandai. Biasanya ada transaksi yang terlewat, saldo awal rekening salah, atau kolom masuk/keluar terbalik.",
   },
   {
     kategori: "Transaksi",
@@ -360,14 +369,19 @@ const QNA: { kategori: string; t: string; j: string }[] = [
     j: "History berisi semua transaksi. Penjualan hanya kode 400. Di situ Staff dan Finance (ADMIN/OWNER) bisa menandai Verified atau mengosongkannya lagi. Hijau berarti sudah dicek, abu-abu berarti belum. Filter Verifikasi menyaring keduanya. Ini terpisah dari ACC Finance.",
   },
   {
+    kategori: "Transaksi",
+    t: "Apa bedanya belum beres, kode akun kosong, dan menunggu ACC?",
+    j: "Belum beres: kode masih kosong, masih berlabel saran, atau bacaan AI yang ragu. Bukan soal ACC. Kode akun kosong: belum punya kode sama sekali; saran AI tidak ikut. Menunggu ACC: data sudah tersimpan, lalu dikoreksi, dan Finance belum mengesahkan. Unggahan awal tidak masuk antrean ini.",
+  },
+  {
     kategori: "ACC",
     t: "Bagaimana alur ACC yang berlaku sekarang?",
-    j: "Satu tahap, dan yang mengesahkan adalah Finance (ADMIN/OWNER). Input rekap dan koreksi rekening bank dari STAFF berstatus \"Perlu ACC Finance\". Bendahara tidak meng-ACC mutasi bank — tugasnya hanya mencatat petty cash. Badge hijau Verified di penjualan kode 400 terpisah dari ACC ini.",
+    j: "Unggahan dan input baru langsung masuk. ACC Finance hanya untuk koreksi setelah data tersimpan: diubah kodenya, catatannya, splitnya, arah uangnya, atau dipindah rekening. Yang mengesahkan adalah ADMIN/OWNER. Bendahara tidak meng-ACC mutasi bank. Badge hijau Verified di penjualan kode 400 terpisah dari ACC ini.",
   },
   {
     kategori: "ACC",
     t: "Apakah input petty cash perlu ACC?",
-    j: "Tidak. Transaksi manual ke rekening berjenis Petty Cash langsung disetujui (tersimpan final) — ini kas kecil operasional. ACC berjenjang hanya untuk rekening bank.",
+    j: "Tidak. Input baru, termasuk petty cash dan unggahan rekap, langsung tersimpan. ACC Finance hanya untuk koreksi setelah data itu sudah tersimpan.",
   },
   {
     kategori: "ACC",
@@ -608,7 +622,7 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
       { role: "STAFF", teks: "Upload screenshot atau PDF di Rekap, pilih rekening" },
       { teks: "AI membaca transaksi, lalu menyarankan kode akun (dua tahap terpisah)" },
       { role: "STAFF", teks: "Periksa baris merah, koreksi kode, split bila perlu" },
-      { role: "STAFF", teks: "Simpan Semua. Baris Duplikat tidak ikut kecuali dicentang Ikut", status: "Perlu ACC Finance" },
+      { role: "STAFF", teks: "Simpan Semua. Duplikat tidak ikut kecuali diklik Jadikan unik", status: "Disetujui" },
       { role: "ADMIN", teks: "Sahkan input staff di halaman Transaksi", status: "Disetujui" },
       { teks: "Masuk Laporan: Laba Rugi, Neraca, Arus Kas, Perubahan Modal" },
     ],
@@ -617,7 +631,7 @@ const ALUR: { judul: string; deskripsi: string; langkah: LangkahAlur[] }[] = [
     judul: "2. Koreksi dan pengesahan",
     deskripsi: "Input dan koreksi rekening bank dari STAFF disahkan Finance (ADMIN/OWNER). Bendahara tidak meng-ACC mutasi bank.",
     langkah: [
-      { role: "STAFF", teks: "Menyimpan rekap, atau mengubah kode, catatan, split, atau tanda yakin transaksi bank", status: "Perlu ACC Finance" },
+      { role: "STAFF", teks: "Mengubah kode, catatan, split, arah uang, atau tanda yakin setelah data tersimpan", status: "Perlu ACC Finance" },
       { role: "ADMIN", teks: "Sahkan di halaman Transaksi, per baris atau lewat Finalkan semua", status: "Disetujui" },
       { teks: "Perubahan oleh ADMIN/OWNER otomatis disetujui dan tercatat atas namanya" },
       { teks: "Kalau STAFF mengubah lagi transaksi bank yang sudah disetujui, statusnya kembali menunggu ACC Finance" },
@@ -772,7 +786,7 @@ const RINGKAS_ROLE: {
       "Melihat Dashboard, Laporan, dan Jurnal Penyesuaian, serta mengunduh PDF jurnal",
     ],
     tidak: [
-      "Perubahan rekening bank menunggu ACC Finance",
+      "Koreksi setelah data tersimpan menunggu ACC Finance. Unggahan awal tidak.",
       "Menghapus transaksi",
       "Membuat, mengubah, atau menghapus Jurnal Penyesuaian",
       "Mengelola rekening, kode akun, alokasi, atau pengguna",
@@ -805,9 +819,9 @@ const RINGKAS_ROLE: {
 type Izin = boolean | "acc" | "acc-kas";
 
 const MATRIKS: { aksi: string; o: Izin; a: Izin; s: Izin; b: Izin }[] = [
-  { aksi: "Upload mutasi & simpan Rekap", o: true, a: true, s: "acc", b: false },
+  { aksi: "Upload mutasi & simpan Rekap", o: true, a: true, s: true, b: false },
   { aksi: "Koreksi kode, catatan, dan split", o: true, a: true, s: "acc", b: "acc-kas" },
-  { aksi: "Tambah transaksi manual", o: true, a: true, s: "acc", b: true },
+  { aksi: "Tambah transaksi manual", o: true, a: true, s: true, b: true },
   { aksi: "ACC (sahkan) pekerjaan STAFF/Bendahara", o: true, a: true, s: false, b: false },
   { aksi: "Hapus transaksi", o: true, a: true, s: false, b: false },
   { aksi: "Dashboard, Laporan, export Excel", o: true, a: true, s: true, b: false },
@@ -831,7 +845,7 @@ function Sel({ v }: { v: Izin }) {
         title={
           v === "acc-kas"
             ? "Hanya petty cash. Koreksi kode, catatan, atau split menunggu ACC Finance. Input petty cash langsung masuk."
-            : "Rekening bank menunggu ACC Finance. Input petty cash langsung masuk."
+            : "Unggahan awal langsung masuk. Koreksi setelah tersimpan menunggu ACC Finance."
         }
         className="inline-flex flex-col items-center gap-0.5"
       >
