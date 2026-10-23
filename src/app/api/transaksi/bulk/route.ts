@@ -138,9 +138,14 @@ export async function POST(req: Request) {
           keterangan: b.keterangan,
         });
 
-        // Hari+nama+nominal, atau baris yang sama persis — kecuali user klik Jadikan unik.
+        // Keputusan duplikat SEPENUHNYA dari tandaiDuplikat, karena hanya di situ
+        // jumlah baris sejenis di DB ikut diperhitungkan. Dulu `hashBentrok`
+        // dipakai sebagai gerbang kedua: begitu hash-nya pernah ada, baris
+        // dibuang — sehingga transaksi kembar yang SAH (dua "Pencairan RT
+        // 175.000" di hari yang sama) selalu hilang walau sudah dinyatakan bukan
+        // duplikat. Hash bentrok sekarang hanya berarti "beri akhiran unik".
         const hashBentrok = existing.has(dedupeHash);
-        if ((Boolean(alasanDuplikat[i]) || hashBentrok) && !b.paksa) {
+        if (Boolean(alasanDuplikat[i]) && !b.paksa) {
           dilewati.push({
             tanggalTeks: b.tanggalIso,
             keterangan: b.keterangan,
@@ -148,7 +153,7 @@ export async function POST(req: Request) {
           });
           continue;
         }
-        const hashFinal = hashBentrok ? `${dedupeHash}:dup${urutan}` : dedupeHash;
+        const hashFinal = hashBentrok || Boolean(alasanDuplikat[i]) ? `${dedupeHash}:dup${urutan}` : dedupeHash;
         existing.add(dedupeHash);
         existing.add(hashFinal);
 

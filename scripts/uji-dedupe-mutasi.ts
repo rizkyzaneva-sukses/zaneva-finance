@@ -38,7 +38,8 @@ cek(
   [null, null]
 );
 
-// Kasus 2 — upload ulang statement yang sama (saldo bank SAMA) tetap harus dicegah.
+// Kasus 2 — baris yang sama persis dengan saldo bank SAMA = duplikat.
+// (Alasan "persis" bukan "orang" karena keterangan ini tidak memuat nama lawan.)
 cek(
   "2. baris yang sama persis dengan saldo bank SAMA = duplikat",
   tandaiDuplikat(
@@ -48,21 +49,23 @@ cek(
     ],
     []
   ),
-  [null, "orang"]
+  [null, "persis"]
 );
 
-// Kasus 3 — tiga kali nominal sama, semuanya transaksi berbeda.
+// Kasus 3 — tiga transaksi 344.500 di hari yang sama, masing-masing dengan
+// saldo berjalan BERBEDA (begitulah mutasi asli: tiap transaksi menggeser saldo).
+// Ketiganya SAH dan harus masuk. Ini bug inti yang dilaporkan Dea.
 cek(
-  "3. tiga transaksi 344.500 saldo berbeda = semua unik",
+  "3. tiga transaksi 344.500 saldo berbeda = ketiganya masuk",
   tandaiDuplikat(
     [
       { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 344500, uangKeluar: 0, saldoBank: 63117891.82 },
-      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 344500, uangKeluar: 0, saldoBank: 63117891.82 },
-      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 344500, uangKeluar: 0, saldoBank: 63117891.82 },
+      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 344500, uangKeluar: 0, saldoBank: 63462391.82 },
+      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 344500, uangKeluar: 0, saldoBank: 63806891.82 },
     ],
     []
   ),
-  [null, "orang", "orang"]
+  [null, null, null]
 );
 
 // Kasus 4 — terhadap data yang SUDAH tersimpan di DB.
@@ -75,9 +78,11 @@ cek(
   [null]
 );
 
-// Kasus 5 — screenshot tanpa saldo bank terbaca: tetap harus dicegah duplikatnya.
+// Kasus 5 — screenshot tanpa saldo bank terbaca: baris kedua dalam satu batch
+// adalah transaksi sah kedua, bukan duplikat. (Revisi 23 Okt — koreksi Dea:
+// screenshot BCA tidak menampilkan saldo berjalan, dan dulu baris kedua hilang.)
 cek(
-  "5. tanpa saldo bank sama sekali, nominal+keterangan sama = tetap duplikat",
+  "5. tanpa saldo bank, dua baris kembar di satu batch = keduanya baru",
   tandaiDuplikat(
     [
       { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 175000, uangKeluar: 0, saldoBank: null },
@@ -85,21 +90,18 @@ cek(
     ],
     []
   ),
-  [null, "orang"]
+  [null, null]
 );
 
-// Kasus 6 — satu terbaca saldo bank, satu tidak: tidak bisa dibuktikan berbeda,
-// jadi tetap ditandai duplikat supaya tim memutuskan (bukan diam-diam lolos).
+// Kasus 6 — satu terbaca saldo bank, satu tidak: saldo yang sama membuktikan
+// baris kedua sudah ada di DB, jadi tetap ditahan.
 cek(
-  "6. saldo bank hanya di satu baris = tetap ditandai, tim yang putuskan",
+  "6. saldo bank sama dengan yang tersimpan = ditahan",
   tandaiDuplikat(
-    [
-      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 175000, uangKeluar: 0, saldoBank: 61450891.82 },
-      { tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 175000, uangKeluar: 0, saldoBank: null },
-    ],
-    []
+    [{ tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 175000, uangKeluar: 0, saldoBank: 61450891.82 }],
+    [{ tanggalIso: "2026-10-17", keterangan: KET, uangMasuk: 175000, uangKeluar: 0, saldoBank: 61450891.82 }]
   ),
-  [null, "orang"]
+  ["orang"]
 );
 
 // Kasus 7 — nominal beda: jelas bukan duplikat.

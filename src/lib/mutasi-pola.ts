@@ -158,20 +158,26 @@ function samaHariNominal(a: JejakMutasi, b: JejakMutasi): boolean {
 }
 
 /**
- * Saldo bank membuktikan keduanya transaksi BERBEDA.
+ * Duplikat terhadap mutasi yang sudah ada di DB.
  *
- * Kalau dua baris punya saldo berjalan yang tercetak berbeda, bank mencatat dua
- * transaksi terpisah di hari itu — tidak peduli nominal dan keterangannya sama.
- * Ini yang membuat "Pencairan RT 175.000" dua kali dalam sehari bukan duplikat.
- */
-function bedaTransaksi(a: JejakMutasi, b: JejakMutasi): boolean {
-  return a.saldoBank !== null && b.saldoBank !== null && a.saldoBank !== b.saldoBank;
-}
-
-/**
- * Duplikat terhadap mutasi yang sudah ada (DB) dan terhadap baris sebelumnya di batch yang sama.
- * Prioritas: hari + nama + nominal. Kalau nama tidak terbaca, baru keterangan yang persis sama.
- * Saldo bank yang berbeda membatalkan tuduhan duplikat.
+ * ⚠️ Dua transaksi yang nominal, tanggal, dan keterangannya sama BUKAN berarti
+ * duplikat. Mutasi bank nyata sering memuat dua "Pencairan RT 175.000"
+ * berturut-turut. Dulu baris seperti ini dibuang, transaksi sah hilang, lalu tim
+ * mengunggah ulang berkali-kali — dan tetap hilang. Itu lingkaran setan yang
+ * dilaporkan Bos (Okt 2026).
+ *
+ * Cara memutuskan, berurutan:
+ *
+ * 1. **Saldo bank ada di kedua sisi** → penentu mutlak. Saldo berbeda = transaksi
+ *    berbeda. Saldo sama = unggahan ulang.
+ * 2. **Saldo bank tidak terbaca** (umum di screenshot mobile banking yang tidak
+ *    menampilkan saldo berjalan) → pakai HITUNG JUMLAH, bukan sekadar "sudah ada".
+ *    Kalau DB punya M baris dengan sidik jari sama dan batch membawa N baris,
+ *    maka min(M,N) di antaranya memang sudah tersimpan — sisanya (N−M) adalah
+ *    transaksi yang belum masuk dan WAJIB disimpan.
+ *
+ * Hasilnya: unggah ulang statement yang sama tetap tertahan semua (N=M), tapi
+ * melengkapi hari yang tadinya cuma tersimpan sebagian tetap bisa (N>M).
  */
 export function tandaiDuplikat<T extends {
   tanggalIso: string | null;
@@ -180,29 +186,54 @@ export function tandaiDuplikat<T extends {
   uangKeluar: number;
   saldoBank?: number | null;
 }>(baris: T[], sudahTersimpan: T[]): (AlasanDuplikat | null)[] {
-  const terlihat: JejakMutasi[] = [];
-  for (const lama of sudahTersimpan) {
-    const jejak = jejakMutasi(lama);
-    if (jejak) terlihat.push(jejak);
+  /** Sidik jari tanpa saldo bank — dasar pencocokan jumlah. */
+  const sidik = (j: JejakMutasi) =>
+    `${j.tanggalIso}|${j.arah}|${j.nominal}|${j.nama ?? ""}|${j.keterangan}`;
+
+  const tersimpanJejak = sudahTersimpan
+    .map(jejakMutasi)
+    .filter((j): j is JejakMutasi => j !== null);
+
+  // Berapa baris DB yang belum "terpakai" untuk tiap sidik jari.
+  const sisaDiDb = new Map<string, number>();
+  for (const j of tersimpanJejak) {
+    const k = sidik(j);
+    sisaDiDb.set(k, (sisaDiDb.get(k) ?? 0) + 1);
   }
+
+  // Saldo bank yang sudah terpakai DI DALAM batch ini. Dua transaksi berbeda
+  // mustahil meninggalkan saldo berjalan yang sama persis di dua posisi, jadi
+  // saldo kembar = baris yang sama terbaca dua kali (mis. screenshot overlap
+  // yang lolos, atau OCR membaca satu baris dua kali).
+  const saldoTerpakai = new Set<string>();
 
   return baris.map((b) => {
     const jejak = jejakMutasi(b);
     if (!jejak) return null;
 
-    const pembanding = terlihat.filter((lain) => !bedaTransaksi(jejak, lain));
+    const kunci = sidik(jejak);
+    const sejenis = tersimpanJejak.filter((lain) => sidik(lain) === kunci);
+
     let alasan: AlasanDuplikat | null = null;
-    if (jejak.nama) {
-      const orang = pembanding.some((lain) => samaHariNominal(jejak, lain) && lain.nama === jejak.nama);
-      if (orang) alasan = "orang";
+
+    if (jejak.saldoBank !== null) {
+      // Penentu mutlak: saldo bank yang sama persis = baris yang sama.
+      const kembar = sejenis.find((lain) => lain.saldoBank === jejak.saldoBank);
+      if (kembar || saldoTerpakai.has(jejak.saldoBank)) {
+        alasan = jejak.nama && kembar?.nama ? "orang" : "persis";
+      }
+      saldoTerpakai.add(jejak.saldoBank);
+    } else {
+      // Saldo bank tidak terbaca: pakai jatah. Selama masih ada baris DB yang
+      // belum terpakai, baris ini dianggap sudah tersimpan. Begitu jatah habis,
+      // baris berikutnya adalah transaksi BARU yang selama ini hilang.
+      const sisa = sisaDiDb.get(kunci) ?? 0;
+      if (sisa > 0) {
+        sisaDiDb.set(kunci, sisa - 1);
+        alasan = jejak.nama ? "orang" : "persis";
+      }
     }
-    if (!alasan) {
-      const persis = pembanding.some(
-        (lain) => samaHariNominal(jejak, lain) && lain.keterangan === jejak.keterangan
-      );
-      if (persis) alasan = "persis";
-    }
-    terlihat.push(jejak);
+
     return alasan;
   });
 }

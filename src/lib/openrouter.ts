@@ -150,19 +150,43 @@ export async function parseGambarMutasi(
   });
 }
 
-/** Buang baris yang identik — lazim muncul dari screenshot yang overlap karena scroll. */
+/**
+ * Buang baris yang benar-benar hasil tumpang tindih screenshot.
+ *
+ * ⚠️ Kunci pembeda yang WAJIB: nama file asal baris itu.
+ *
+ * Satu screenshot tidak mungkin menampilkan transaksi yang sama dua kali. Jadi
+ * kalau dua baris identik berasal dari file yang SAMA, itu memang DUA TRANSAKSI
+ * BERBEDA yang kebetulan nominal dan keterangannya sama — mis. dua "Pencairan
+ * RT 175.000" berturut-turut di daftar mutasi. Dulu baris seperti ini dibuang,
+ * sehingga transaksi sah hilang dan tim mengunggah ulang berkali-kali.
+ *
+ * Yang memang duplikat hanyalah baris identik yang muncul lagi di FILE BERBEDA —
+ * itu tanda screenshot di-scroll dan bagian atasnya ikut terfoto dua kali.
+ *
+ * Saldo bank tetap dipakai kalau ada: dua transaksi berbeda punya saldo berbeda.
+ */
 export function dedupeHasilParsing(rows: BarisParsing[]): BarisParsing[] {
-  const seen = new Set<string>();
+  // kunci isi -> daftar file asal yang sudah memuat baris ini
+  const asalFile = new Map<string, Set<string>>();
   const hasil: BarisParsing[] = [];
   for (const r of rows) {
-    // Saldo berjalan ikut jadi kunci. Dua transaksi berbeda yang kebetulan
-    // tanggal, keterangan, dan nominalnya sama tetap punya saldo bank berbeda —
-    // tanpa ini, transaksi kembar yang sah ikut terbuang sebagai "overlap".
-    const key = `${r.tanggalTeks}|${r.keterangan}|${r.uangMasuk}|${r.uangKeluar}|${
+    const kunci = `${r.tanggalTeks}|${r.keterangan}|${r.uangMasuk}|${r.uangKeluar}|${
       r.saldoBank === null || r.saldoBank === undefined ? "" : r.saldoBank
     }`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const file = r.sumberFile || "";
+    const sudah = asalFile.get(kunci);
+
+    if (!sudah) {
+      asalFile.set(kunci, new Set([file]));
+      hasil.push(r);
+      continue;
+    }
+
+    // Sudah pernah muncul di file LAIN -> ini tumpang tindih scroll, buang.
+    if (!sudah.has(file)) continue;
+
+    // Muncul lagi di file yang sama -> dua transaksi sah, pertahankan.
     hasil.push(r);
   }
   return hasil;
