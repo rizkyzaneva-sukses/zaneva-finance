@@ -6,12 +6,18 @@ import { butuhAcc, type PenggunaAktif } from "@/lib/auth";
  * Aturan ACC transaksi. "Finance" = ADMIN / OWNER.
  * Bendahara tidak meng-ACC mutasi bank. Tugasnya hanya mencatat petty cash.
  *
- * 1. Input baru (rekap maupun manual, bank maupun petty cash) → DISETUJUI.
- *    Menyimpan pertama kali bukan koreksi.
- * 2. Koreksi rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
+ * 1. Input baru hasil mutasi bank (unggahan screenshot/PDF) → DISETUJUI.
+ *    Menyimpan pertama kali bukan koreksi, dan angkanya sudah dibuktikan
+ *    dokumen bank.
+ * 2. Input MANUAL (lewat "Tambah Transaksi") oleh STAFF/BENDAHARA →
+ *    PERLU_FINANCE. Baris manual tidak punya dokumen bank yang membuktikannya
+ *    — mis. Penjualan Shopee 10 juta yang sudah dipotong auto-debit iklan.
+ *    Angka seperti ini menentukan laba kotor & biaya iklan, jadi harus
+ *    disahkan Finance sebelum dianggap final.
+ * 3. ADMIN/OWNER menginput → DISETUJUI; menginput berarti memutuskan.
+ * 4. Koreksi rekening bank oleh Bendahara/Staff → PERLU_FINANCE.
  *    Koreksi petty cash yang menyentuh kode akun, catatan, atau split
  *    juga PERLU_FINANCE. Koreksi ringan petty cash tetap DISETUJUI.
- * 3. ADMIN/OWNER mengubah → DISETUJUI; mengubah berarti memutuskan.
  */
 
 /** Field ACC (skalar) yang ditulis bersama transaksi. */
@@ -28,10 +34,22 @@ export function inputPettyCashTanpaAcc(bank: Bank): boolean {
 
 /**
  * Field ACC untuk transaksi BARU.
- * Unggahan dan input manual langsung disetujui. ACC Finance hanya untuk koreksi
- * setelah data itu sudah tersimpan.
+ *
+ * - Hasil unggahan mutasi bank (`sumber` SCREENSHOT/PDF) → DISETUJUI. Angkanya
+ *   sudah dibuktikan dokumen bank; menyimpan pertama kali bukan koreksi.
+ * - Input MANUAL (Tambah Transaksi) oleh STAFF/BENDAHARA → PERLU_FINANCE.
+ *   Baris ini tidak punya dokumen bank yang membuktikannya, padahal bisa
+ *   menentukan laba kotor & biaya iklan. Harus disahkan Finance dulu.
+ * - ADMIN/OWNER menginput manual → DISETUJUI; menginput berarti memutuskan.
  */
-export function fieldAccUntukInput(user: Pick<PenggunaAktif, "id" | "role">, _bank: Bank): FieldAcc {
+export function fieldAccUntukInput(
+  user: Pick<PenggunaAktif, "id" | "role">,
+  _bank: Bank,
+  sumber?: string
+): FieldAcc {
+  if (sumber === "MANUAL" && butuhAcc(user.role)) {
+    return { statusAcc: StatusAcc.PERLU_FINANCE, accOlehId: null, accPada: null };
+  }
   return { statusAcc: StatusAcc.DISETUJUI, accOlehId: user.id, accPada: new Date() };
 }
 

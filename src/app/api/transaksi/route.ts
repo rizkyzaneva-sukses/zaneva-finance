@@ -154,8 +154,9 @@ export async function POST(req: Request) {
           statusKode: body.kodeAkunId ? StatusKode.DIKONFIRMASI : StatusKode.KOSONG,
           sumber: Sumber.MANUAL,
           dedupeHash: buatDedupeHash({ tanggalIso, uangMasuk, uangKeluar, keterangan }),
-          // Input baru langsung disetujui. ACC Finance hanya untuk koreksi setelah tersimpan.
-          ...fieldAccUntukInput(auth.user, rekening.bank),
+          // Input baru hasil mutasi bank langsung disetujui. Input MANUAL oleh
+          // STAFF/BENDAHARA masuk antrean ACC Finance — lihat src/lib/acc.ts.
+          ...fieldAccUntukInput(auth.user, rekening.bank, Sumber.MANUAL),
           createdById: auth.user.id,
         },
       });
