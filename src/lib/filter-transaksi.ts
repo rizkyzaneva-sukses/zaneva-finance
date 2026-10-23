@@ -55,6 +55,19 @@ export function filterDariQuery(sp: URLSearchParams): Prisma.TransaksiWhereInput
   if (verifikasi === "sudah") dan.push({ diverifikasiPada: { not: null } });
   if (verifikasi === "belum") dan.push({ diverifikasiPada: null });
 
+  // Filter "Belum Verifikasi" di tab History: penjualan (kode 400) yang belum
+  // dicek tim. Sengaja dibatasi ke kode 400 — transaksi lain tidak punya
+  // konsep "Verified", jadi kalau ikut masuk hasilnya hanya kebisingan.
+  if (sp.get("belumVerifikasi") === "1") {
+    dan.push({
+      diverifikasiPada: null,
+      OR: [
+        { kodeAkun: { kode: "400" } },
+        { rincian: { some: { kodeAkun: { kode: "400" } } } },
+      ],
+    });
+  }
+
   const dari = sp.get("dari");
   const sampai = sp.get("sampai");
   if (dari || sampai) {

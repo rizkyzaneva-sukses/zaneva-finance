@@ -94,7 +94,7 @@ export async function POST(req: Request) {
               rekeningId,
               tanggal: { in: tanggalUnik.map((t) => new Date(`${t}T00:00:00.000Z`)) },
             },
-            select: { tanggal: true, keterangan: true, uangMasuk: true, uangKeluar: true },
+            select: { tanggal: true, keterangan: true, uangMasuk: true, uangKeluar: true, saldoBank: true },
           })
         : [];
       const alasanDuplikat = tandaiDuplikat(
@@ -104,6 +104,7 @@ export async function POST(req: Request) {
           keterangan: t.keterangan,
           uangMasuk: t.uangMasuk.toNumber(),
           uangKeluar: t.uangKeluar.toNumber(),
+          saldoBank: t.saldoBank === null ? null : t.saldoBank.toNumber(),
         }))
       );
 

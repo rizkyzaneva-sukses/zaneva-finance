@@ -111,6 +111,7 @@ function TransaksiIsi() {
   const [belumBeres, setBelumBeres] = React.useState(params.get("belumBeres") === "1");
   const [kodeKosong, setKodeKosong] = React.useState(params.get("kodeKosong") === "1");
   const [menungguAcc, setMenungguAcc] = React.useState(params.get("menungguAcc") === "1");
+  const [belumVerifikasi, setBelumVerifikasi] = React.useState(params.get("belumVerifikasi") === "1");
   const [dipilih, setDipilih] = React.useState<string[]>([]);
   const [pindahBuka, setPindahBuka] = React.useState(false);
   const [rekeningTujuan, setRekeningTujuan] = React.useState<string | null>(null);
@@ -150,12 +151,25 @@ function TransaksiIsi() {
     if (belumBeres) q.set("belumBeres", "1");
     if (kodeKosong) q.set("kodeKosong", "1");
     if (menungguAcc) q.set("menungguAcc", "1");
+    if (belumVerifikasi) q.set("belumVerifikasi", "1");
     if (tab === "penjualan") {
       q.set("penjualan", "1");
       if (verifikasi) q.set("verifikasi", verifikasi);
     }
     return q;
-  }, [filterRekening, filterKode, dari, sampai, cari, belumBeres, kodeKosong, menungguAcc, tab, verifikasi]);
+  }, [
+    filterRekening,
+    filterKode,
+    dari,
+    sampai,
+    cari,
+    belumBeres,
+    kodeKosong,
+    menungguAcc,
+    belumVerifikasi,
+    tab,
+    verifikasi,
+  ]);
 
   const muat = React.useCallback(async () => {
     setMemuat(true);
@@ -652,6 +666,23 @@ function TransaksiIsi() {
               Hanya yang menunggu ACC
               <span className="block text-xs text-gray-600 dark:text-gray-400">
                 Sudah tersimpan, lalu dikoreksi, dan Finance belum mengesahkan.
+              </span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 pb-2 text-sm text-gray-700 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={belumVerifikasi}
+              onChange={(e) => {
+                setBelumVerifikasi(e.target.checked);
+                setHalaman(1);
+              }}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-zinc-600"
+            />
+            <span>
+              Belum Verifikasi
+              <span className="block text-xs text-gray-600 dark:text-gray-400">
+                Penjualan kode 400 yang belum dicek tim. Bisa diverifikasi sekaligus dari tabel.
               </span>
             </span>
           </label>

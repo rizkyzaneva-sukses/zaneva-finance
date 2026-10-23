@@ -155,7 +155,12 @@ export function dedupeHasilParsing(rows: BarisParsing[]): BarisParsing[] {
   const seen = new Set<string>();
   const hasil: BarisParsing[] = [];
   for (const r of rows) {
-    const key = `${r.tanggalTeks}|${r.keterangan}|${r.uangMasuk}|${r.uangKeluar}`;
+    // Saldo berjalan ikut jadi kunci. Dua transaksi berbeda yang kebetulan
+    // tanggal, keterangan, dan nominalnya sama tetap punya saldo bank berbeda —
+    // tanpa ini, transaksi kembar yang sah ikut terbuang sebagai "overlap".
+    const key = `${r.tanggalTeks}|${r.keterangan}|${r.uangMasuk}|${r.uangKeluar}|${
+      r.saldoBank === null || r.saldoBank === undefined ? "" : r.saldoBank
+    }`;
     if (seen.has(key)) continue;
     seen.add(key);
     hasil.push(r);

@@ -20,6 +20,7 @@ interface BarisMasuk {
   uangMasuk?: number;
   uangKeluar?: number;
   tanggalIso?: string | null;
+  saldoBank?: number | null;
 }
 
 /** Tahap 2: kode akun (aturan + ingatan koreksi + AI) dan tanda duplikat. */
@@ -65,6 +66,8 @@ export async function POST(req: Request) {
       tanggalIso: b.tanggalIso ? String(b.tanggalIso) : null,
       uangMasuk: Number(b.uangMasuk ?? 0) || 0,
       uangKeluar: Number(b.uangKeluar ?? 0) || 0,
+      saldoBank:
+        b.saldoBank === null || b.saldoBank === undefined ? null : Number(b.saldoBank),
     }));
 
     const perluAi = siap.filter((row) => {
@@ -100,7 +103,7 @@ export async function POST(req: Request) {
             rekeningId,
             tanggal: { in: tanggalUnik.map((t) => new Date(`${t}T00:00:00.000Z`)) },
           },
-          select: { tanggal: true, keterangan: true, uangMasuk: true, uangKeluar: true },
+          select: { tanggal: true, keterangan: true, uangMasuk: true, uangKeluar: true, saldoBank: true },
         })
       : [];
 
@@ -110,12 +113,14 @@ export async function POST(req: Request) {
         keterangan: b.teks,
         uangMasuk: b.uangMasuk,
         uangKeluar: b.uangKeluar,
+        saldoBank: (b as { saldoBank?: number | null }).saldoBank ?? null,
       })),
       tersimpan.map((t) => ({
         tanggalIso: tanggalKeIso(t.tanggal),
         keterangan: t.keterangan,
         uangMasuk: t.uangMasuk.toNumber(),
         uangKeluar: t.uangKeluar.toNumber(),
+        saldoBank: t.saldoBank === null ? null : t.saldoBank.toNumber(),
       }))
     );
 

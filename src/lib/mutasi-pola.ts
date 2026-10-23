@@ -114,6 +114,13 @@ export interface JejakMutasi {
   nominal: string;
   nama: string | null;
   keterangan: string;
+  /**
+   * Saldo berjalan yang tercetak di mutasi bank. Ini pembeda paling kuat antara
+   * "transaksi kembar yang memang dua kali terjadi" dan "baris terunggah dua kali":
+   * dua transaksi berbeda punya saldo berjalan BERBEDA, sedangkan satu baris yang
+   * diunggah ulang membawa saldo yang sama persis.
+   */
+  saldoBank: string | null;
 }
 
 export type AlasanDuplikat = "orang" | "persis";
@@ -127,6 +134,7 @@ export function jejakMutasi(input: {
   keterangan: string;
   uangMasuk: number;
   uangKeluar: number;
+  saldoBank?: number | null;
 }): JejakMutasi | null {
   if (!input.tanggalIso) return null;
   const masuk = input.uangMasuk > 0;
@@ -138,6 +146,10 @@ export function jejakMutasi(input: {
     nominal: nominalKunci(nominal),
     nama: namaLawan(input.keterangan),
     keterangan: normalisasiTeks(input.keterangan),
+    saldoBank:
+      input.saldoBank === null || input.saldoBank === undefined
+        ? null
+        : nominalKunci(Number(input.saldoBank)),
   };
 }
 
@@ -146,14 +158,27 @@ function samaHariNominal(a: JejakMutasi, b: JejakMutasi): boolean {
 }
 
 /**
+ * Saldo bank membuktikan keduanya transaksi BERBEDA.
+ *
+ * Kalau dua baris punya saldo berjalan yang tercetak berbeda, bank mencatat dua
+ * transaksi terpisah di hari itu — tidak peduli nominal dan keterangannya sama.
+ * Ini yang membuat "Pencairan RT 175.000" dua kali dalam sehari bukan duplikat.
+ */
+function bedaTransaksi(a: JejakMutasi, b: JejakMutasi): boolean {
+  return a.saldoBank !== null && b.saldoBank !== null && a.saldoBank !== b.saldoBank;
+}
+
+/**
  * Duplikat terhadap mutasi yang sudah ada (DB) dan terhadap baris sebelumnya di batch yang sama.
  * Prioritas: hari + nama + nominal. Kalau nama tidak terbaca, baru keterangan yang persis sama.
+ * Saldo bank yang berbeda membatalkan tuduhan duplikat.
  */
 export function tandaiDuplikat<T extends {
   tanggalIso: string | null;
   keterangan: string;
   uangMasuk: number;
   uangKeluar: number;
+  saldoBank?: number | null;
 }>(baris: T[], sudahTersimpan: T[]): (AlasanDuplikat | null)[] {
   const terlihat: JejakMutasi[] = [];
   for (const lama of sudahTersimpan) {
@@ -165,13 +190,14 @@ export function tandaiDuplikat<T extends {
     const jejak = jejakMutasi(b);
     if (!jejak) return null;
 
+    const pembanding = terlihat.filter((lain) => !bedaTransaksi(jejak, lain));
     let alasan: AlasanDuplikat | null = null;
     if (jejak.nama) {
-      const orang = terlihat.some((lain) => samaHariNominal(jejak, lain) && lain.nama === jejak.nama);
+      const orang = pembanding.some((lain) => samaHariNominal(jejak, lain) && lain.nama === jejak.nama);
       if (orang) alasan = "orang";
     }
     if (!alasan) {
-      const persis = terlihat.some(
+      const persis = pembanding.some(
         (lain) => samaHariNominal(jejak, lain) && lain.keterangan === jejak.keterangan
       );
       if (persis) alasan = "persis";
