@@ -65,6 +65,7 @@ export async function GET(req: Request) {
             uangKeluar: true,
             saldo: true,
             saldoBank: true,
+            sumber: true,
             rekeningId: true,
           },
         }),

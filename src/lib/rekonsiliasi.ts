@@ -31,21 +31,30 @@ export type BarisRekonsiliasi = {
   uangMasuk: Prisma.Decimal;
   uangKeluar: Prisma.Decimal;
   saldoBank: Prisma.Decimal | null;
+  /**
+   * `MANUAL` = baris yang diinput lewat "Tambah Transaksi", bukan hasil baca
+   * mutasi bank. Contoh nyata: pencairan Shopee Rp 10.000.000 yang sudah
+   * dipotong auto-debit, jadi yang masuk rekening bersih. Tim mencatatnya
+   * sebagai Penjualan Shopee (masuk) + Iklan Shopee (keluar) supaya laba kotor
+   * dan biaya iklan tetap terlihat.
+   *
+   * Baris seperti ini MEMANG TIDAK ADA di mutasi bank, jadi membandingkannya
+   * dengan saldo bank selalu salah. Dia dikecualikan dari rekonsiliasi.
+   */
+  sumber?: string;
 };
 
 export type AnalisaHari = {
-  /** Rantai saldo bank utuh, urutan baris bisa dibuktikan. */
-  koheren: boolean;
-  /** Urutan id baris mengikuti rantai saldo bank. null = tidak bisa disusun. */
-  urutanRantai: string[] | null;
-  /** Saldo akhir hari menurut ujung rantai bank. null = tidak ada saldo bank. */
-  saldoAkhirBank: Prisma.Decimal | null;
-  /** Saldo akhir hari menurut hitungan sistem (saldo awal + net hari itu). */
-  saldoAkhirSistem: Prisma.Decimal;
-  /** saldoAkhirSistem - saldoAkhirBank. null kalau saldo bank tidak ada. */
+  /** Data bank hari itu cukup untuk memvonis cocok/tidak. */
+  sah: boolean;
+  /** Kenapa tidak sah — untuk tooltip & log. */
+  alasan: string | null;
+  /** Net hari itu menurut sistem (Σ masuk − Σ keluar). */
+  netSistem: Prisma.Decimal;
+  /** Net hari itu menurut mutasi bank (saldo akhir − saldo awal). */
+  netBank: Prisma.Decimal | null;
+  /** netSistem − netBank. null kalau data bank tidak sah. */
   selisih: Prisma.Decimal | null;
-  /** Saldo bank terbaca di hari itu? */
-  adaSaldoBank: boolean;
 };
 
 const sen = (d: Prisma.Decimal) => d.toFixed(2);
@@ -53,132 +62,107 @@ const sen = (d: Prisma.Decimal) => d.toFixed(2);
 /**
  * Analisa satu hari transaksi sebuah rekening.
  *
- * `sebelum` = saldo sistem sebelum hari itu dimulai.
+ * Hanya baris yang berasal dari mutasi bank (SCREENSHOT/PDF) yang direkonsiliasi.
+ * Baris `MANUAL` — mis. Penjualan/Iklan/Koin Shopee yang diinput lewat "Tambah
+ * Transaksi" karena pencairan Shopee sudah dipotong auto-debit — memang TIDAK
+ * ADA di mutasi, jadi membandingkannya dengan saldo bank selalu salah.
+ *
+ * Yang dibandingkan adalah NET hari itu (Σ masuk − Σ keluar) terhadap NET
+ * mutasi bank (saldo akhir − saldo awal). Bukan saldo kumulatif: kalau
+ * kumulatif, satu hari yang bolong membuat semua hari sesudahnya terlihat beda.
  */
-export function analisaHari(
-  baris: BarisRekonsiliasi[],
-  sebelum: Prisma.Decimal
-): AnalisaHari {
-  const net = baris.reduce(
+export function analisaHari(baris: BarisRekonsiliasi[]): AnalisaHari {
+  const bank = baris.filter((b) => b.sumber !== "MANUAL");
+  const net = bank.reduce(
     (akumulasi, b) => akumulasi.plus(b.uangMasuk).minus(b.uangKeluar),
     new Prisma.Decimal(0)
   );
-  const saldoAkhirSistem = sebelum.plus(net);
 
-  const bersaldo = baris.filter((b) => b.saldoBank !== null);
-  if (bersaldo.length === 0) {
+  if (bank.length === 0) {
     return {
-      koheren: false,
-      urutanRantai: null,
-      saldoAkhirBank: null,
-      saldoAkhirSistem,
+      sah: false,
+      alasan: "hari ini hanya berisi transaksi manual (tidak ada di mutasi bank)",
+      netSistem: net,
+      netBank: null,
       selisih: null,
-      adaSaldoBank: false,
     };
   }
 
-  // Simpul = saldo bank. Dua baris dengan saldo bank sama persis adalah baris
-  // kembar (unggahan ulang) — bank hanya mencatat satu baris di saldo itu, jadi
-  // keduanya duduk di simpul yang sama.
-  const simpul = new Map<string, BarisRekonsiliasi[]>();
+  const bersaldo = bank.filter((b) => b.saldoBank !== null);
+  if (bersaldo.length === 0) {
+    return {
+      sah: false,
+      alasan: "tidak ada saldo bank di hari ini",
+      netSistem: net,
+      netBank: null,
+      selisih: null,
+    };
+  }
+
+  // Syarat sah: setiap baris BANK hari itu punya saldo bank. Kalau ada satu
+  // saja yang tidak terbaca (screenshot mobile banking sering tidak mencetak
+  // saldo berjalan), net bank tidak bisa dihitung dan hari itu tidak divonis.
+  if (bersaldo.length !== bank.length) {
+    return {
+      sah: false,
+      alasan: `${bank.length - bersaldo.length} baris mutasi tanpa saldo bank`,
+      netSistem: net,
+      netBank: null,
+      selisih: null,
+    };
+  }
+
+  // Rantai harus utuh: saldo-sebelum tiap baris harus menjadi saldo baris lain
+  // hari itu (kecuali satu titik awal), dan hanya ada satu titik akhir.
+  const saldoSet = new Set<string>();
+  for (const b of bersaldo) saldoSet.add(sen(b.saldoBank!));
+
+  const sebelumSet = new Set<string>();
   for (const b of bersaldo) {
-    const kunci = sen(b.saldoBank!);
-    const isi = simpul.get(kunci);
-    if (isi) isi.push(b);
-    else simpul.set(kunci, [b]);
+    sebelumSet.add(sen(b.saldoBank!.minus(b.uangMasuk).plus(b.uangKeluar)));
   }
 
-  // Saldo sebelum tiap simpul: saldoBank - masuk + keluar.
-  const sebelumnya = new Map<string, string>();
-  simpul.forEach((isi, kunci) => {
-    const b = isi[0];
-    sebelumnya.set(kunci, sen(b.saldoBank!.minus(b.uangMasuk).plus(b.uangKeluar)));
-  });
-
-  // Ujung rantai = saldo bank yang tidak menjadi "saldo sebelumnya" simpul lain.
-  const semuaPrev = new Set<string>();
-  sebelumnya.forEach((prev) => semuaPrev.add(prev));
-  const ujung: string[] = [];
-  simpul.forEach((_isi, kunci) => {
-    if (!semuaPrev.has(kunci)) ujung.push(kunci);
-  });
-  const saldoAkhirBank = ujung.length === 1 ? new Prisma.Decimal(ujung[0]) : null;
-
-  const hasil = (
-    koheren: boolean,
-    urutanRantai: string[] | null,
-    akhirBank: Prisma.Decimal | null
-  ): AnalisaHari => ({
-    koheren,
-    urutanRantai,
-    saldoAkhirBank: akhirBank,
-    saldoAkhirSistem,
-    selisih: akhirBank === null ? null : saldoAkhirSistem.minus(akhirBank),
-    adaSaldoBank: true,
-  });
-
-  if (simpul.size < 2) {
-    // Satu simpul saja: tidak ada rantai yang perlu disusun.
-    return hasil(true, baris.map((b) => b.id), saldoAkhirBank);
-  }
-
-  // Titik awal hari = saldo sebelum sebuah simpul yang bukan saldo simpul lain.
   const titikAwal: string[] = [];
-  sebelumnya.forEach((prev, kunci) => {
-    if (!simpul.has(prev)) titikAwal.push(kunci);
+  sebelumSet.forEach((p) => {
+    if (!saldoSet.has(p)) titikAwal.push(p);
   });
-  if (titikAwal.length !== 1) {
-    return hasil(false, null, saldoAkhirBank);
-  }
-
-  const berangkat = new Map<string, string[]>();
-  sebelumnya.forEach((prev, kunci) => {
-    const daftar = berangkat.get(prev);
-    if (daftar) daftar.push(kunci);
-    else berangkat.set(prev, [kunci]);
+  const titikAkhir: string[] = [];
+  saldoSet.forEach((s) => {
+    if (!sebelumSet.has(s)) titikAkhir.push(s);
   });
 
-  const rantai: string[] = [];
-  const dipakai = new Set<string>();
-  let sekarang: string | undefined = titikAwal[0];
-  while (sekarang && !dipakai.has(sekarang)) {
-    rantai.push(sekarang);
-    dipakai.add(sekarang);
-    const berikut: string[] = (berangkat.get(sekarang) ?? []).filter((s) => !dipakai.has(s));
-    if (berikut.length > 1) return hasil(false, null, saldoAkhirBank);
-    sekarang = berikut[0];
+  if (titikAwal.length !== 1 || titikAkhir.length !== 1) {
+    return {
+      sah: false,
+      alasan:
+        titikAwal.length !== 1
+          ? `${titikAwal.length} titik awal — ada baris mutasi yang hilang`
+          : `${titikAkhir.length} titik akhir`,
+      netSistem: net,
+      netBank: null,
+      selisih: null,
+    };
   }
 
-  if (rantai.length !== simpul.size) {
-    return hasil(false, null, saldoAkhirBank);
-  }
-
-  // Urutan akhir: baris bersaldo mengikuti rantai, baris tanpa saldo bank
-  // (mis. pasangan manual Penjualan/Iklan Shopee) ditaruh di belakang.
-  const urutanRantai: string[] = [];
-  for (const kunci of rantai) {
-    for (const b of simpul.get(kunci)!) urutanRantai.push(b.id);
-  }
-  for (const b of baris) {
-    if (b.saldoBank === null) urutanRantai.push(b.id);
-  }
-
-  return hasil(true, urutanRantai, new Prisma.Decimal(rantai[rantai.length - 1]));
+  const netBank = new Prisma.Decimal(titikAkhir[0]).minus(new Prisma.Decimal(titikAwal[0]));
+  return {
+    sah: true,
+    alasan: null,
+    netSistem: net,
+    netBank,
+    selisih: net.minus(netBank),
+  };
 }
 
 /**
  * Baris mana yang layak diberi badge "beda dgn bank".
  *
- * Aturannya satu saja: **saldo akhir hari** dibandingkan dengan saldo ujung
- * rantai mutasi bank. Cocok → tidak ada badge sama sekali, sekalipun urutan
- * baris di database tidak sesuai rantai (urutan hanya soal tampilan, bukan
- * kebenaran angka). Beda → satu badge di baris terakhir hari itu.
+ * Hanya kalau net hari itu **terbukti** beda: semua baris hari itu punya saldo
+ * bank DAN rantai saldonya utuh. Kalau data bank tidak lengkap, badge tidak
+ * dipasang — lebih baik diam daripada menuduh salah.
  *
- * Kenapa bukan per baris: `saldo` berjalan bergantung pada urutan baris, dan
- * urutan itu tidak bisa dibuktikan kalau OCR gagal membaca sebagian saldo.
- * Menandai per baris menghasilkan puluhan tanda palsu di hari yang totalnya
- * sudah benar — persis keluhan "total saldo sudah sesuai tapi masih ada tanda
- * beda dgn bank".
+ * Satu tanda untuk satu hari, di baris terakhir. Menandai per baris membuat
+ * satu hari bermasalah tampak seperti puluhan kesalahan.
  */
 export function tentukanBadge(
   baris: { id: string }[],
@@ -186,14 +170,11 @@ export function tentukanBadge(
   toleransi: Prisma.Decimal
 ): Set<string> {
   const hasil = new Set<string>();
-
-  if (!analisa.adaSaldoBank) return hasil;
+  if (!analisa.sah) return hasil;
   if (analisa.selisih === null) return hasil;
   if (analisa.selisih.abs().lessThan(toleransi)) return hasil;
   if (baris.length === 0) return hasil;
 
-  // Satu tanda untuk satu hari, di baris terakhir — tempat saldo akhir hari
-  // bisa dibaca langsung di tabel.
   hasil.add(baris[baris.length - 1].id);
   return hasil;
 }
@@ -228,16 +209,10 @@ export function hitungBadgeRekening(
     else perTanggal.set(kunci, [t]);
   }
 
-  let berjalan = saldoAwal;
+  void saldoAwal;
   for (const kunci of [...perTanggal.keys()].sort()) {
     const daftar = [...perTanggal.get(kunci)!].sort((a, b) => a.urutanInput - b.urutanInput);
-    const sebelum = berjalan;
-    berjalan = daftar.reduce(
-      (akumulasi, t) => akumulasi.plus(t.uangMasuk).minus(t.uangKeluar),
-      sebelum
-    );
-
-    const analisa = analisaHari(daftar, sebelum);
+    const analisa = analisaHari(daftar);
     for (const id of tentukanBadge(daftar, analisa, toleransi)) hasil.add(id);
   }
 

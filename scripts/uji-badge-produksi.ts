@@ -1,28 +1,33 @@
 /**
  * Uji rekonsiliasi langsung terhadap DATABASE PRODUKSI.
  *
- * Bedanya dengan uji-rekonsiliasi.ts (yang pakai CSV): uji ini membaca tabel
- * Transaksi & Rekening yang benar-benar dipakai aplikasi, lalu membandingkan
- * jumlah badge "beda dgn bank" cara lama vs cara baru.
+ * Aturan yang diuji: badge "beda dgn bank" hanya dipasang kalau net satu hari
+ * TERBUKTI beda dengan net mutasi bank. Syarat bukti:
+ *   - SETIAP baris hari itu punya saldoBank, dan
+ *   - rantai saldo utuh (1 titik awal, 1 titik akhir).
+ *
+ * Hari yang datanya tidak lengkap dilewati (tidak divonis) — lebih baik diam
+ * daripada menuduh salah.
  *
  * Dijalankan di dalam container: npx tsx scripts/uji-badge-produksi.ts
  */
 import { prisma } from "../src/lib/prisma";
 import { analisaHari, tentukanBadge } from "../src/lib/rekonsiliasi";
 import { Prisma } from "../src/generated/prisma/client";
+
 const TOL = new Prisma.Decimal("1");
 
 async function main() {
   const rekening = await prisma.rekening.findMany({
-    select: { id: true, bank: true, nomorRekening: true, saldoAwal: true },
+    select: { id: true, nomorRekening: true, bank: true, saldoAwal: true },
     orderBy: { urutan: "asc" },
   });
 
   let badgeLama = 0;
   let badgeBaru = 0;
-  let hariTotal = 0;
-  let hariBeda = 0;
-  const rincianHariBeda: string[] = [];
+  let hariSah = 0;
+  let hariTakSah = 0;
+  const beda: string[] = [];
 
   for (const rek of rekening) {
     const baris = await prisma.transaksi.findMany({
@@ -35,6 +40,7 @@ async function main() {
         uangKeluar: true,
         saldo: true,
         saldoBank: true,
+        sumber: true,
       },
       orderBy: [{ tanggal: "asc" }, { urutanInput: "asc" }],
     });
@@ -48,50 +54,45 @@ async function main() {
       else perTanggal.set(kunci, [t]);
     }
 
-    let berjalan = rek.saldoAwal;
     for (const kunci of [...perTanggal.keys()].sort()) {
       const daftar = [...perTanggal.get(kunci)!].sort((a, b) => a.urutanInput - b.urutanInput);
-      const sebelum = berjalan;
-      berjalan = daftar.reduce(
-        (a, t) => a.plus(t.uangMasuk).minus(t.uangKeluar),
-        sebelum
-      );
 
-      const lama = daftar.filter(
-        (t) =>
-          t.saldoBank !== null &&
-          t.saldo.minus(t.saldoBank).abs().greaterThanOrEqualTo(TOL)
-      );
-      badgeLama += lama.length;
+      // Cara LAMA: tiap baris dibandingkan saldo berjalan vs saldoBank-nya.
+      badgeLama += daftar.filter(
+        (t) => t.saldoBank !== null && t.saldo.minus(t.saldoBank).abs().greaterThanOrEqualTo(TOL)
+      ).length;
 
-      const analisa = analisaHari(daftar, sebelum);
+      const analisa = analisaHari(daftar);
       const baru = tentukanBadge(daftar, analisa, TOL);
       badgeBaru += baru.size;
 
-      if (analisa.adaSaldoBank) {
-        hariTotal += 1;
-        if (baru.size > 0) {
-          hariBeda += 1;
-          rincianHariBeda.push(
-            `${rek.nomorRekening} ${kunci} n=${daftar.length} sistem=${analisa.saldoAkhirSistem} bank=${analisa.saldoAkhirBank} selisih=${analisa.selisih}`
-          );
-        }
+      if (!analisa.sah) {
+        hariTakSah += 1;
+        continue;
+      }
+      hariSah += 1;
+      if (baru.size > 0) {
+        beda.push(
+          `${rek.nomorRekening} ${kunci}: net sistem=${analisa.netSistem} net bank=${analisa.netBank} selisih=${analisa.selisih}`
+        );
       }
     }
   }
 
   console.log("=== UJI BADGE TERHADAP DB PRODUKSI ===");
-  console.log(`Rekening            : ${rekening.length}`);
-  console.log(`Hari punya saldoBank: ${hariTotal}`);
+  console.log(`Rekening                   : ${rekening.length}`);
   console.log("");
-  console.log(`Badge cara LAMA (per baris) : ${badgeLama}`);
-  console.log(`Badge cara BARU (per hari)  : ${badgeBaru}`);
-  console.log(`Turun                       : ${badgeLama - badgeBaru}`);
+  console.log(`Badge cara LAMA (per baris): ${badgeLama}`);
+  console.log(`Badge cara BARU (per hari) : ${badgeBaru}`);
+  console.log(`Turun                      : ${badgeLama - badgeBaru}`);
   console.log("");
-  console.log(`Hari yang masih ditandai    : ${hariBeda} dari ${hariTotal}`);
-  if (rincianHariBeda.length > 0) {
-    console.log("\nRincian hari yang masih ditandai (selisih nyata):");
-    for (const r of rincianHariBeda) console.log("  " + r);
+  console.log(`Hari terbukti (data lengkap): ${hariSah}`);
+  console.log(`Hari dilewati (tak lengkap) : ${hariTakSah}`);
+  if (beda.length > 0) {
+    console.log("\nHari yang TERBUKTI beda:");
+    for (const b of beda) console.log("  " + b);
+  } else {
+    console.log("\nTidak ada hari yang terbukti beda. Semua net hari cocok dengan bank.");
   }
 }
 
