@@ -169,34 +169,31 @@ export function analisaHari(
 /**
  * Baris mana yang layak diberi badge "beda dgn bank".
  *
- * - Rantai utuh: badge per baris apa adanya (selisih nyata).
- * - Rantai tidak utuh: badge per baris dimatikan. Hanya baris terakhir hari itu
- *   yang ditandai kalau saldo akhir hari memang meleset — satu-satunya angka
- *   yang bisa dipertanggungjawabkan dari data yang bolong.
+ * Aturannya satu saja: **saldo akhir hari** dibandingkan dengan saldo ujung
+ * rantai mutasi bank. Cocok → tidak ada badge sama sekali, sekalipun urutan
+ * baris di database tidak sesuai rantai (urutan hanya soal tampilan, bukan
+ * kebenaran angka). Beda → satu badge di baris terakhir hari itu.
+ *
+ * Kenapa bukan per baris: `saldo` berjalan bergantung pada urutan baris, dan
+ * urutan itu tidak bisa dibuktikan kalau OCR gagal membaca sebagian saldo.
+ * Menandai per baris menghasilkan puluhan tanda palsu di hari yang totalnya
+ * sudah benar — persis keluhan "total saldo sudah sesuai tapi masih ada tanda
+ * beda dgn bank".
  */
 export function tentukanBadge(
-  baris: { id: string; saldo: Prisma.Decimal; saldoBank: Prisma.Decimal | null }[],
+  baris: { id: string }[],
   analisa: AnalisaHari,
   toleransi: Prisma.Decimal
 ): Set<string> {
   const hasil = new Set<string>();
 
   if (!analisa.adaSaldoBank) return hasil;
-
-  if (analisa.koheren) {
-    for (const b of baris) {
-      if (b.saldoBank === null) continue;
-      if (b.saldo.minus(b.saldoBank).abs().greaterThanOrEqualTo(toleransi)) {
-        hasil.add(b.id);
-      }
-    }
-    return hasil;
-  }
-
-  // Rantai tidak utuh. Hanya satu tanda untuk hari itu, di baris terakhir.
   if (analisa.selisih === null) return hasil;
   if (analisa.selisih.abs().lessThan(toleransi)) return hasil;
   if (baris.length === 0) return hasil;
+
+  // Satu tanda untuk satu hari, di baris terakhir — tempat saldo akhir hari
+  // bisa dibaca langsung di tabel.
   hasil.add(baris[baris.length - 1].id);
   return hasil;
 }
