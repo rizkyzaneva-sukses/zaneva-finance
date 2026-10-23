@@ -41,6 +41,8 @@ interface Transaksi {
   uangKeluar: string;
   saldo: string;
   saldoBank: string | null;
+  /** Diputuskan backend per HARI — lihat src/lib/rekonsiliasi.ts. */
+  bedaBank?: boolean;
   catatan: string | null;
   statusKode: "KOSONG" | "SARAN_AI" | "DIKONFIRMASI";
   statusAcc: "DISETUJUI" | "MENUNGGU" | "PERLU_FINANCE";
@@ -925,15 +927,18 @@ function TransaksiIsi() {
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 text-right tabular-nums text-gray-900 dark:text-gray-50">
                         {formatAngka(t.saldo)}
-                        {t.saldoBank !== null &&
-                          Math.abs(Number(t.saldo) - Number(t.saldoBank)) >= 1 && (
-                            <div
-                              title={`Saldo di mutasi bank: ${formatAngka(t.saldoBank)}`}
-                              className="mt-0.5"
-                            >
-                              <Badge warna="kuning">beda dgn bank</Badge>
-                            </div>
-                          )}
+                        {t.bedaBank === true && (
+                          <div
+                            title={
+                              t.saldoBank !== null
+                                ? `Saldo di mutasi bank: ${formatAngka(t.saldoBank)}`
+                                : "Saldo akhir hari ini beda dengan mutasi bank. Sebagian baris hari ini tidak terbaca saldonya, jadi hanya total akhir hari yang bisa dibandingkan."
+                            }
+                            className="mt-0.5"
+                          >
+                            <Badge warna="kuning">beda dgn bank</Badge>
+                          </div>
+                        )}
                       </td>
                       <td className="px-2 py-2">
                         <input

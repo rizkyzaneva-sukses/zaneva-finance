@@ -3,7 +3,8 @@ import { wajibLogin, apiError } from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { Bank, Role, StatusKode, Sumber } from "@/generated/prisma/enums";
-import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya } from "@/lib/rekap";
+import { buatDedupeHash, hitungUlangSaldo, urutanInputBerikutnya, TOLERANSI_SALDO } from "@/lib/rekap";
+import { hitungBadgeRekening } from "@/lib/rekonsiliasi";
 import { filterDariQuery } from "@/lib/filter-transaksi";
 import { batasiTransaksi, bolehRekening } from "@/lib/akses";
 import { fieldAccUntukInput } from "@/lib/acc";
@@ -47,7 +48,48 @@ export async function GET(req: Request) {
       prisma.transaksi.count({ where }),
     ]);
 
-    return NextResponse.json({ transaksi, total, halaman, perHalaman });
+    // Badge "beda dgn bank" diputuskan per HARI, bukan per baris. Perlu seluruh
+    // baris rekening yang muncul di halaman ini — bukan cuma halaman ini —
+    // karena saldo awal hari bergantung pada hari-hari sebelumnya.
+    const rekeningIds = [...new Set(transaksi.map((t) => t.rekeningId))];
+    const bedaBank = new Set<string>();
+    if (rekeningIds.length > 0) {
+      const [semuaBaris, daftarRekening] = await Promise.all([
+        prisma.transaksi.findMany({
+          where: { rekeningId: { in: rekeningIds } },
+          select: {
+            id: true,
+            tanggal: true,
+            urutanInput: true,
+            uangMasuk: true,
+            uangKeluar: true,
+            saldo: true,
+            saldoBank: true,
+            rekeningId: true,
+          },
+        }),
+        prisma.rekening.findMany({
+          where: { id: { in: rekeningIds } },
+          select: { id: true, saldoAwal: true },
+        }),
+      ]);
+      const saldoAwalPer = new Map(daftarRekening.map((r) => [r.id, r.saldoAwal]));
+      for (const rekeningId of rekeningIds) {
+        const baris = semuaBaris.filter((b) => b.rekeningId === rekeningId);
+        const saldoAwal = saldoAwalPer.get(rekeningId);
+        if (saldoAwal === undefined) continue;
+        for (const id of hitungBadgeRekening(baris, saldoAwal, TOLERANSI_SALDO)) {
+          bedaBank.add(id);
+        }
+      }
+    }
+
+    return NextResponse.json({
+      transaksi: transaksi.map((t) => ({ ...t, bedaBank: bedaBank.has(t.id) })),
+      total,
+      halaman,
+      perHalaman,
+    });
   } catch (err) {
     return apiError(err);
   }
