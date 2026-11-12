@@ -128,6 +128,11 @@ export function bolehKelolaPengguna(role: Role): boolean {
   return role === Role.OWNER;
 }
 
+/** Fitur Rekap Pertumbuhan Bisnis: hanya untuk Finance (ADMIN) dan OWNER. */
+export function bolehPertumbuhanBisnis(role: Role): boolean {
+  return role === Role.ADMIN || role === Role.OWNER;
+}
+
 /** Lihat dashboard alokasi dan saldonya. Kuncinya: persentase & jatah laba hanya untuk ADMIN/OWNER. */
 export function bolehLihatAlokasi(role: Role): boolean {
   return role === Role.ADMIN || role === Role.OWNER;

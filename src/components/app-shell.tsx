@@ -19,6 +19,7 @@ import {
   Package,
   Tags,
   Database,
+  TrendingUp,
   LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,7 @@ const MENU: MenuItem[] = [
   { href: "/unduh", label: "Unduh Rekapan", icon: Download, butuh: SEMUA_KECUALI_BENDAHARA, grup: "operasional" },
   { href: "/laporan", label: "Laporan", icon: BookOpenCheck, butuh: SEMUA_KECUALI_BENDAHARA, grup: "tutup" },
   { href: "/alokasi", label: "Alokasi", icon: PiggyBank, butuh: ["OWNER", "ADMIN"], semuaBrand: true, grup: "tutup" },
+  { href: "/pertumbuhan-bisnis", label: "Pertumbuhan Bisnis", icon: TrendingUp, butuh: ["OWNER", "ADMIN"], semuaBrand: true, grup: "tutup" },
   { href: "/stok", label: "Stok & HPP", icon: Package, semuaBrand: true, grup: "tutup" },
   { href: "/master/rekening", label: "Rekening", icon: Landmark, butuh: ["OWNER", "ADMIN"], grup: "master" },
   { href: "/master/brand", label: "Brand", icon: Tags, butuh: ["OWNER", "ADMIN"], semuaBrand: true, grup: "master" },

@@ -108,6 +108,8 @@ model User {
   dokumenDiunggah DokumenMutasi[]
   soDiunggah      StokOpname[]        @relation("SoDiunggah")
   soDiAcc         StokOpname[]        @relation("SoDiAcc")
+  pertumbuhanDibuat PertumbuhanBisnis[] @relation("PertumbuhanDibuat")
+  pertumbuhanDiubah PertumbuhanBisnis[] @relation("PertumbuhanDiubah")
   /// Brand yang boleh diakses. Kosong = semua brand (OWNER selalu semua).
   brandAkses      UserBrand[]
 }
@@ -387,6 +389,7 @@ model Brand {
   soItem    StokOpnameItem[]
   penugasan UserBrand[]
   jurnal    JurnalPenyesuaian[]
+  pertumbuhanBisnis PertumbuhanBisnis[]
 }
 
 /// Jurnal yang tidak menggerakkan rekening. Debit = kredit.
@@ -498,3 +501,64 @@ model StokOpnameItem {
   @@unique([stokOpnameId, produkId])
   @@index([brandId])
 }
+
+/// Rekap bulanan pertumbuhan bisnis & aset bersih per brand (diisi manual oleh tim Finance).
+/// Hanya bisa diakses oleh role ADMIN (Finance) dan OWNER.
+model PertumbuhanBisnis {
+  id         String   @id @default(cuid())
+  brandId    String
+  brand      Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  tahun      Int
+  bulan      Int      // 1..12
+
+  // A. Cash On Bank
+  // Rincian akun bank: [{ "nama": "BCA", "nominal": 91791666.94 }, ...]
+  detailBank Json?
+  cashOnBank Decimal  @default(0) @db.Decimal(18, 2)
+
+  // B. Cash On Hand
+  kasBesar   Decimal  @default(0) @db.Decimal(18, 2)
+  kasKecil   Decimal  @default(0) @db.Decimal(18, 2)
+  cashOnHand Decimal  @default(0) @db.Decimal(18, 2)
+
+  // C & D. Piutang & Utang Vendor
+  piutangVendor Decimal @default(0) @db.Decimal(18, 2)
+  utangVendor   Decimal @default(0) @db.Decimal(18, 2)
+
+  // E. Outstanding Marketplace & COD
+  outstandingShopeeLazada Decimal @default(0) @db.Decimal(18, 2)
+  outstandingSap          Decimal @default(0) @db.Decimal(18, 2)
+  outstandingJnt          Decimal @default(0) @db.Decimal(18, 2)
+  outstandingTiktok       Decimal @default(0) @db.Decimal(18, 2)
+  outstandingLainnya      Decimal @default(0) @db.Decimal(18, 2)
+  outstanding             Decimal @default(0) @db.Decimal(18, 2)
+
+  // F. Inventory
+  inventory        Decimal @default(0) @db.Decimal(18, 2)
+  selisihInventory Decimal @default(0) @db.Decimal(18, 2)
+
+  // G. Total Nilai Bisnis / Net Asset
+  // Rumus: cashOnBank + cashOnHand + piutangVendor - utangVendor + outstanding + inventory
+  total Decimal @default(0) @db.Decimal(18, 2)
+
+  // H. Pertumbuhan vs Bulan Sebelumnya
+  pertumbuhanNominal Decimal  @default(0) @db.Decimal(18, 2)
+  pertumbuhanPersen  Decimal? @db.Decimal(10, 4)
+
+  // I. Hutang Lainnya & Catatan
+  hutangLainnya    Decimal @default(0) @db.Decimal(18, 2)
+  keteranganHutang String?
+  catatan          String?
+
+  // J. Audit
+  dibuatOlehId String?
+  dibuatOleh   User?    @relation("PertumbuhanDibuat", fields: [dibuatOlehId], references: [id], onDelete: SetNull)
+  diubahOlehId String?
+  diubahOleh   User?    @relation("PertumbuhanDiubah", fields: [diubahOlehId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([brandId, tahun, bulan])
+  @@index([tahun, bulan])
+}
+
