@@ -170,7 +170,7 @@ export async function imporPertumbuhanDariWorkbook(wb: ExcelJS.Workbook, userId?
   const brandDefinitions = [
     { namaBrand: "ZANEVA", aliasSheet: ["Zaneva", "Sheet: Zaneva"] },
     { namaBrand: "OBERBE", aliasSheet: ["Oberbe"] },
-    { namaBrand: "BESYARI", aliasSheet: ["Be Syari", "BeSyari", "Besyari"] },
+    { namaBrand: "BE SYAR'I", aliasSheet: ["Be Syari", "BeSyari", "Besyari", "BE SYAR'I", "BE SYARI'I"] },
     { namaBrand: "MUSWIM", aliasSheet: ["Muswim"] },
   ];
 
@@ -413,8 +413,11 @@ export async function buatExcelPertumbuhanBisnis() {
   wb.creator = "Zaneva Finance System";
   wb.created = new Date();
 
-  // Ambil semua brand dan data
+  // Ambil semua brand non-dummy dan data
   const brands = await prisma.brand.findMany({
+    where: {
+      NOT: { nama: { startsWith: "[DUMMY]" } },
+    },
     orderBy: { nama: "asc" },
   });
 

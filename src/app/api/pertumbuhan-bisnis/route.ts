@@ -24,8 +24,11 @@ export async function GET(req: Request) {
     const filterBrandId = searchParams.get("brandId");
     const filterTahun = searchParams.get("tahun") ? Number(searchParams.get("tahun")) : undefined;
 
-    // Ambil semua brand yang memiliki data atau brand aktif
+    // Ambil semua brand aktif non-dummy
     const brands = await prisma.brand.findMany({
+      where: {
+        NOT: { nama: { startsWith: "[DUMMY]" } },
+      },
       orderBy: { nama: "asc" },
       select: { id: true, nama: true, kunci: true },
     });
